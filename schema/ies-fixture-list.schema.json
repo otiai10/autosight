@@ -1,0 +1,279 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "ies-fixture-list-schema",
+  "title": "IES照明器具リストスキーマ",
+  "description": "IESアプリ用照明器具リストExcelファイルの構造定義。照明設計プロジェクトで使用する器具情報を管理するためのマスターデータ形式を規定する。",
+  "version": "1.0.0",
+
+  "excel": {
+    "filePattern": "^\\d{6}_ies.*\\.xlsx$",
+    "filePatternDescription": "ファイル名は「YYMMDD_ies〜.xlsx」形式。例: 260102_iesアプリ用照明器具リスト例.xlsx",
+
+    "sheets": {
+      "Fixture Base": {
+        "description": "照明器具のマスターデータベース。プロジェクトで使用する全ての照明器具の仕様・コスト情報を一元管理する。各行が1つの器具タイプに対応し、Spec No.をキーとして他シートから参照される。",
+        "headerRow": 1,
+        "dataStartRow": 3,
+        "skipRows": [2],
+        "skipRowsDescription": "2行目は注釈行（*Insert new Rows...）のためスキップ",
+
+        "columns": [
+          {
+            "key": "spec_no",
+            "name": "Spec No.",
+            "type": "string",
+            "required": true,
+            "pattern": "^[A-Z]\\d+[a-z]?$",
+            "description": "器具記号。図面や仕様書で器具を識別するためのユニークな記号。アルファベット大文字+数字の組み合わせで構成される。例: A01, A01n, D11w など。サフィックス（n, w, s等）はバリエーションを示す。"
+          },
+          {
+            "key": "date",
+            "name": "Date",
+            "type": "date",
+            "required": false,
+            "description": "器具情報の更新日。最終更新日を記録し、仕様変更の履歴管理に使用する。"
+          },
+          {
+            "key": "revision",
+            "name": "Rev.",
+            "type": "string",
+            "required": false,
+            "description": "リビジョン番号。器具仕様の改訂履歴を管理する。初期は「-」、以降は数字またはアルファベットで更新を示す。"
+          },
+          {
+            "key": "omitted",
+            "name": "omitted",
+            "type": "number",
+            "enum": [0, 1],
+            "description": "除外フラグ。0=有効、1=除外。プロジェクトから除外された器具を論理削除するために使用。物理的に行を削除せず履歴を残す。"
+          },
+          {
+            "key": "luminaire_type",
+            "name": "Luminaire_Type",
+            "type": "string",
+            "required": true,
+            "description": "器具タイプの名称。器具の種類・用途を示す日本語名称。例: アジャスタブルダウンライト、ペンダント、ブラケット、間接照明など。括弧内に開口径や特殊仕様を記載する場合がある。"
+          },
+          {
+            "key": "light_source_type",
+            "name": "Light source type",
+            "type": "string",
+            "enum": ["LED", "蛍光灯", "HID", "ハロゲン"],
+            "description": "光源の種類。現在はほぼ全てLEDだが、既存器具との互換性のため他の光源タイプも定義可能。"
+          },
+          {
+            "key": "light_source_description",
+            "name": "Light source description",
+            "type": "string",
+            "description": "光源の詳細説明。LEDモジュールの型番や特殊な光源仕様がある場合に記載する。"
+          },
+          {
+            "key": "lamp_manufacturer",
+            "name": "Lamp_Manufacturer",
+            "type": "string",
+            "description": "光源（ランプ/モジュール）のメーカー名。器具本体と光源が別メーカーの場合に使用。一体型LEDの場合は「-」とする。"
+          },
+          {
+            "key": "lamp_model_code",
+            "name": "Lamp_Model_Code",
+            "type": "string",
+            "description": "光源の型番コード。交換用ランプの発注や在庫管理に使用する。一体型LEDの場合は「-」とする。"
+          },
+          {
+            "key": "color_temp",
+            "name": "色温度",
+            "type": "string",
+            "pattern": "^\\d+K$",
+            "enum": ["2700K", "3000K", "3500K", "4000K", "5000K", "6500K"],
+            "description": "光源の色温度（ケルビン）。照明の色味を示す。2700K=電球色（暖色）、3000K=温白色、4000K=白色、5000K=昼白色、6500K=昼光色（寒色）。住宅・ホスピタリティは2700-3000K、オフィスは4000-5000Kが一般的。"
+          },
+          {
+            "key": "beam_angle",
+            "name": "配光角",
+            "type": "string",
+            "pattern": "^\\d+°",
+            "description": "光の広がり角度（ビーム角）。光度が最大値の50%になる角度で定義される。狭角(10-20°)=スポット照明、中角(25-40°)=一般照明、広角(50°以上)=拡散照明。「+lens」等の記載はオプションレンズ使用時を示す。"
+          },
+          {
+            "key": "lumen",
+            "name": "Lumen",
+            "type": "number",
+            "minimum": 0,
+            "description": "光束値（ルーメン）。光源から発せられる光の総量を示す。照度計算の基礎データとなる。器具効率を考慮した「器具光束」を記載する。"
+          },
+          {
+            "key": "wattage",
+            "name": "消費電力",
+            "type": "number",
+            "minimum": 0,
+            "description": "消費電力（ワット）。器具全体（光源+電源装置）の消費電力。電気設備設計での負荷計算、ランニングコスト算出に使用する。"
+          },
+          {
+            "key": "va",
+            "name": "VA",
+            "type": "number",
+            "minimum": 0,
+            "description": "皮相電力（ボルトアンペア）。電源容量の計算に使用する。力率を考慮した実際の電源負荷を示す。"
+          },
+          {
+            "key": "unit",
+            "name": "Unit",
+            "type": "string",
+            "enum": ["個", "台", "セット", "m"],
+            "description": "数量単位。通常は「個」だが、間接照明など長さで指定する場合は「m」を使用する。"
+          },
+          {
+            "key": "manufacturer",
+            "name": "メーカー",
+            "type": "string",
+            "required": true,
+            "description": "器具メーカー名。日本の主要照明メーカー: コイズミ照明、大光電機、遠藤照明、パナソニック、オーデリック、山田照明、マックスレイなど。"
+          },
+          {
+            "key": "model",
+            "name": "器具型番",
+            "type": "string",
+            "required": true,
+            "description": "メーカーの製品型番。発注・見積に使用する正式な型番を記載する。特注品の場合は「特注」または基本型番+「/特注加工」と記載。"
+          },
+          {
+            "key": "control",
+            "name": "制御",
+            "type": "string",
+            "enum": ["DALI調光", "PWM調光", "位相調光", "1-10V調光", "非調光", "Bluetooth", "無線"],
+            "description": "調光制御方式。DALI=デジタル制御（推奨）、PWM=パルス幅変調、位相調光=従来型調光器対応、1-10V=アナログ信号制御。照明制御システムとの互換性を確認する必要がある。"
+          },
+          {
+            "key": "accessories",
+            "name": "アクセサリー",
+            "type": "string",
+            "description": "付属品・オプション品の情報。調光電源、ルーバー、レンズ、フィルター等の型番を記載。複数ある場合はカンマまたは改行で区切る。これらは別途発注・コスト計上が必要な場合がある。"
+          },
+          {
+            "key": "notes",
+            "name": "注記",
+            "type": "string",
+            "description": "特記事項・補足情報。塗装色指定（日塗工番号等）、開口寸法、防水仕様、特注内容など、図面・発注時に必要な追加情報を記載する。"
+          },
+          {
+            "key": "cost_fixture",
+            "name": "Cost of Fixture",
+            "type": "number",
+            "minimum": 0,
+            "description": "器具本体の定価（円）。メーカー希望小売価格を記載。実際の仕入れ価格は掛け率を適用して算出する。"
+          },
+          {
+            "key": "cost_driver",
+            "name": "Cost of Driver",
+            "type": "number",
+            "minimum": 0,
+            "description": "電源装置（ドライバー）の定価（円）。別置電源の場合に記載。器具内蔵電源の場合はCost of Fixtureに含まれるため空欄。"
+          },
+          {
+            "key": "cost_others",
+            "name": "Cost of Others",
+            "type": "number",
+            "minimum": 0,
+            "description": "その他付属品の定価（円）。ルーバー、レンズ、取付金具など、アクセサリー欄に記載した付属品の合計金額。"
+          }
+        ]
+      },
+
+      "器具仕様": {
+        "description": "器具仕様集シート。Fixture Baseのデータを印刷用にレイアウトした形式。各ページに複数の器具仕様をカード形式で配置し、設計図書の別紙として使用する。行列を入れ替えた転置形式でデータを表示する。",
+        "type": "layout",
+        "layoutDescription": "横方向に器具を並べ、縦方向に仕様項目を配置する転置レイアウト。1ページあたり約8器具を表示。",
+
+        "metadata": {
+          "title": {
+            "cell": "B1",
+            "type": "string",
+            "fixed": "別紙：照明器具仕様集",
+            "description": "シートタイトル。固定文言。"
+          },
+          "projectName": {
+            "cell": "D2",
+            "type": "string",
+            "description": "プロジェクト名。建物名称や工事名称を記載する。"
+          },
+          "phase": {
+            "cell": "D3",
+            "type": "string",
+            "enum": ["SD", "DD", "CD", "施工"],
+            "description": "設計フェーズ。SD=基本設計、DD=実施設計、CD=工事契約図書、施工=施工段階。"
+          },
+          "area": {
+            "cell": "D4",
+            "type": "string",
+            "description": "対象エリア。階数やゾーン名を記載。例: 1F, B1F-2F, 共用部 など。"
+          },
+          "date": {
+            "cell": "D5",
+            "type": "date",
+            "description": "作成日/更新日。この仕様集の発行日を記載する。"
+          }
+        },
+
+        "fixtureCards": {
+          "startColumn": "P",
+          "description": "P列以降に器具カードを横並びで配置。各カードは器具1台分の仕様を縦に表示する。"
+        }
+      },
+
+      "器具リスト": {
+        "description": "プロジェクト器具リストシート。図面に対応した器具一覧表。数量集計、金額計算、VE検討などに使用する。設計図書の一部として納品する形式。",
+        "type": "layout",
+
+        "metadata": {
+          "title": {
+            "cell": "B3",
+            "type": "string",
+            "fixed": "照明器具リスト",
+            "description": "シートタイトル。固定文言。"
+          },
+          "projectName": {
+            "cell": "C4",
+            "type": "string",
+            "description": "プロジェクト名。建物名称や工事名称を記載する。"
+          },
+          "area": {
+            "cell": "C5",
+            "type": "string",
+            "description": "対象エリア。複数階にまたがる場合はカンマ区切り。例: B1F, 1F"
+          },
+          "drawingNo": {
+            "cell": "C6",
+            "type": "string",
+            "description": "図面番号。この器具リストが対応する電気図面の番号。例: E-2001, XXX-2001"
+          },
+          "date": {
+            "cell": "C7",
+            "type": "date",
+            "description": "作成日/更新日。リスト発行日を記載する。"
+          },
+          "revision": {
+            "cell": "C8",
+            "type": "string",
+            "pattern": "^[A-Z]?\\d+$",
+            "description": "リビジョン番号。D0=初版、D1=1回目改訂など。Dは「Design」の略。施工段階ではC(Construction)を使用する場合もある。"
+          }
+        },
+
+        "sections": {
+          "priceReference": {
+            "description": "金額参照セクション。定価見積からの参照金額を表示。",
+            "startColumn": "AB"
+          },
+          "estimateReview": {
+            "description": "見積もり精査セクション。実際の見積金額との比較検討用。",
+            "startColumn": "AF"
+          },
+          "veProposal": {
+            "description": "VE案セクション。Value Engineering（コスト削減）提案用。代替器具や仕様変更案を記載。",
+            "startColumn": "AH"
+          }
+        }
+      }
+    }
+  }
+}
