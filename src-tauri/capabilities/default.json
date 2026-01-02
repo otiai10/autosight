@@ -11,6 +11,7 @@
     "fs:allow-read",
     "fs:allow-write",
     "fs:write-all",
+    "store:default",
     {
       "identifier": "http:default",
       "allow": [

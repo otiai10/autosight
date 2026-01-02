@@ -15,6 +15,7 @@
     "@tauri-apps/plugin-fs": "^2.4.4",
     "@tauri-apps/plugin-http": "^2.5.4",
     "@tauri-apps/plugin-opener": "^2",
+    "@tauri-apps/plugin-store": "^2.4.1",
     "flowbite": "^4.0.1",
     "flowbite-react": "^0.12.15",
     "react": "^19.1.0",
