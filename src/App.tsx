@@ -1,159 +1,176 @@
-import { useState } from "react";
-import { Button, Card, FileInput, Label, Alert } from "flowbite-react";
-import { open } from "@tauri-apps/plugin-dialog";
-import { readFile, writeFile, mkdir } from "@tauri-apps/plugin-fs";
-import { fetch } from "@tauri-apps/plugin-http";
+import { useState, useEffect, useCallback } from 'react';
+import { Alert } from 'flowbite-react';
+import { MainLayout } from './components/layout/MainLayout';
+import { FileDropZone } from './components/home/FileDropZone';
+import { FixtureTable } from './components/fixtures/FixtureTable';
+import { FetchPanel } from './components/fetch/FetchPanel';
+import { getSupportedManufacturers } from './services/tauri/commands';
+import type { Fixture, FixtureSelection, BatchDownloadResult } from './types/fixture';
+import type { ParseResult } from './services/excel/parser';
+
+type Page = 'home' | 'fixtures' | 'fetch' | 'output' | 'settings';
 
 function App() {
-  const [logs, setLogs] = useState<string[]>([]);
-  const [excelPath, setExcelPath] = useState<string>("");
+  const [currentPage, setCurrentPage] = useState<Page>('home');
+  const [fixtures, setFixtures] = useState<Fixture[]>([]);
+  const [selections, setSelections] = useState<FixtureSelection[]>([]);
+  const [fileName, setFileName] = useState<string>('');
+  const [supportedManufacturers, setSupportedManufacturers] = useState<string[]>([]);
+  const [warnings, setWarnings] = useState<string[]>([]);
+  const [lastResult, setLastResult] = useState<BatchDownloadResult | null>(null);
 
-  const addLog = (message: string) => {
-    setLogs((prev) => [...prev, `[${new Date().toLocaleTimeString()}] ${message}`]);
-  };
+  // 対応メーカーを取得
+  useEffect(() => {
+    getSupportedManufacturers()
+      .then(setSupportedManufacturers)
+      .catch(console.error);
+  }, []);
 
-  // 検証1: ファイル選択ダイアログ
-  const testFileDialog = async () => {
-    try {
-      const selected = await open({
-        multiple: false,
-        filters: [
-          { name: "Excel", extensions: ["xlsx", "xls", "xlsm"] },
-          { name: "All", extensions: ["*"] },
-        ],
-      });
-      if (selected) {
-        setExcelPath(selected as string);
-        addLog(`ファイル選択成功: ${selected}`);
-      } else {
-        addLog("ファイル選択がキャンセルされました");
-      }
-    } catch (e) {
-      addLog(`エラー: ${e}`);
-    }
-  };
+  // ファイル読み込み完了時
+  const handleFileLoaded = useCallback((result: ParseResult, name: string) => {
+    setFixtures(result.fixtures);
+    setFileName(name);
+    setWarnings(result.warnings);
 
-  // 検証2: HTTP通信
-  const testHttpFetch = async () => {
-    try {
-      addLog("HTTP GETリクエスト送信中...");
-      const response = await fetch("https://httpbin.org/get", {
-        method: "GET",
-      });
-      const data = await response.json();
-      addLog(`HTTP成功! ステータス: ${response.status}`);
-      addLog(`レスポンス: ${JSON.stringify(data).substring(0, 100)}...`);
-    } catch (e) {
-      addLog(`HTTPエラー: ${e}`);
-    }
-  };
+    // 選択状態を初期化（対応メーカーのみ選択）
+    setSelections(
+      result.fixtures.map((fixture) => ({
+        fixture,
+        selected: supportedManufacturers.some((m) => fixture.manufacturer.includes(m)),
+        downloadStatus: undefined,
+      }))
+    );
 
-  // 検証3: ファイル読み取り
-  const testReadFile = async () => {
-    if (!excelPath) {
-      addLog("先にファイルを選択してください");
-      return;
-    }
-    try {
-      addLog(`ファイル読み取り中: ${excelPath}`);
-      const contents = await readFile(excelPath);
-      addLog(`ファイル読み取り成功! サイズ: ${contents.length} bytes`);
-    } catch (e) {
-      addLog(`ファイル読み取りエラー: ${e}`);
-    }
-  };
+    // 器具一覧ページに遷移
+    setCurrentPage('fixtures');
+  }, [supportedManufacturers]);
 
-  // 検証4: ファイル書き込み
-  const testWriteFile = async () => {
-    try {
-      const savePath = await open({
-        directory: true,
-        title: "保存先フォルダを選択",
-      });
-      if (!savePath) {
-        addLog("フォルダ選択がキャンセルされました");
-        return;
-      }
+  // 選択状態の変更
+  const handleSelectionChange = useCallback((newSelections: FixtureSelection[]) => {
+    setSelections(newSelections);
+  }, []);
 
-      const testContent = `AutoSight テストファイル\n作成日時: ${new Date().toISOString()}\n`;
-      const filePath = `${savePath}/autosight_test.txt`;
+  // ダウンロード進捗の更新
+  const handleProgressUpdate = useCallback(
+    (specNo: string, status: 'downloading' | 'success' | 'error', error?: string) => {
+      setSelections((prev) =>
+        prev.map((s) =>
+          s.fixture.specNo === specNo
+            ? { ...s, downloadStatus: status, downloadError: error }
+            : s
+        )
+      );
+    },
+    []
+  );
 
-      await writeFile(filePath, new TextEncoder().encode(testContent));
-      addLog(`ファイル書き込み成功: ${filePath}`);
-    } catch (e) {
-      addLog(`ファイル書き込みエラー: ${e}`);
+  // ダウンロード完了
+  const handleComplete = useCallback((result: BatchDownloadResult) => {
+    setLastResult(result);
+  }, []);
+
+  // ページに応じたコンテンツをレンダリング
+  const renderContent = () => {
+    switch (currentPage) {
+      case 'home':
+        return <FileDropZone onFileLoaded={handleFileLoaded} />;
+
+      case 'fixtures':
+        if (fixtures.length === 0) {
+          return (
+            <div className="text-center py-20">
+              <p className="text-gray-500">
+                まずExcelファイルを読み込んでください
+              </p>
+            </div>
+          );
+        }
+        return (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+                器具一覧
+              </h2>
+              <p className="text-gray-500">{fileName}</p>
+            </div>
+
+            {warnings.length > 0 && (
+              <Alert color="warning">
+                <ul className="list-disc list-inside">
+                  {warnings.map((w, i) => (
+                    <li key={i}>{w}</li>
+                  ))}
+                </ul>
+              </Alert>
+            )}
+
+            <FixtureTable
+              fixtures={fixtures}
+              selections={selections}
+              onSelectionChange={handleSelectionChange}
+              supportedManufacturers={supportedManufacturers}
+            />
+          </div>
+        );
+
+      case 'fetch':
+        if (fixtures.length === 0) {
+          return (
+            <div className="text-center py-20">
+              <p className="text-gray-500">
+                まずExcelファイルを読み込んでください
+              </p>
+            </div>
+          );
+        }
+        return (
+          <FetchPanel
+            selections={selections}
+            onProgressUpdate={handleProgressUpdate}
+            onComplete={handleComplete}
+          />
+        );
+
+      case 'output':
+        return (
+          <div className="text-center py-20">
+            <h2 className="text-2xl font-bold mb-4">出力</h2>
+            {lastResult ? (
+              <div className="max-w-md mx-auto text-left bg-white p-6 rounded-lg shadow">
+                <p className="text-lg font-semibold mb-2">最後の処理結果</p>
+                <p>成功: {lastResult.successCount}件</p>
+                <p>失敗: {lastResult.failureCount}件</p>
+              </div>
+            ) : (
+              <p className="text-gray-500">
+                まだ処理結果がありません
+              </p>
+            )}
+          </div>
+        );
+
+      case 'settings':
+        return (
+          <div className="text-center py-20">
+            <h2 className="text-2xl font-bold mb-4">設定</h2>
+            <p className="text-gray-500 mb-4">対応メーカー:</p>
+            <ul className="list-disc list-inside">
+              {supportedManufacturers.map((m) => (
+                <li key={m}>{m}</li>
+              ))}
+            </ul>
+          </div>
+        );
+
+      default:
+        return null;
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 p-8">
-      <div className="max-w-4xl mx-auto">
-        <h1 className="text-3xl font-bold text-gray-800 mb-8">
-          AutoSight - 技術検証
-        </h1>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-          {/* 検証1: ファイル選択 */}
-          <Card>
-            <h2 className="text-xl font-semibold mb-4">検証1: ファイル選択</h2>
-            <Button onClick={testFileDialog} color="blue">
-              Excelファイルを選択
-            </Button>
-            {excelPath && (
-              <p className="mt-2 text-sm text-gray-600 truncate">
-                選択: {excelPath}
-              </p>
-            )}
-          </Card>
-
-          {/* 検証2: HTTP通信 */}
-          <Card>
-            <h2 className="text-xl font-semibold mb-4">検証2: HTTP通信</h2>
-            <Button onClick={testHttpFetch} color="green">
-              HTTP GETテスト
-            </Button>
-          </Card>
-
-          {/* 検証3: ファイル読み取り */}
-          <Card>
-            <h2 className="text-xl font-semibold mb-4">検証3: ファイル読み取り</h2>
-            <Button onClick={testReadFile} color="purple">
-              選択ファイルを読み取り
-            </Button>
-          </Card>
-
-          {/* 検証4: ファイル書き込み */}
-          <Card>
-            <h2 className="text-xl font-semibold mb-4">検証4: ファイル書き込み</h2>
-            <Button onClick={testWriteFile} color="pink">
-              テストファイルを保存
-            </Button>
-          </Card>
-        </div>
-
-        {/* ログ表示 */}
-        <Card>
-          <h2 className="text-xl font-semibold mb-4">ログ</h2>
-          <div className="bg-gray-900 text-green-400 p-4 rounded-lg font-mono text-sm h-64 overflow-y-auto">
-            {logs.length === 0 ? (
-              <p className="text-gray-500">ボタンをクリックして検証を開始...</p>
-            ) : (
-              logs.map((log, i) => <p key={i}>{log}</p>)
-            )}
-          </div>
-          {logs.length > 0 && (
-            <Button
-              onClick={() => setLogs([])}
-              color="gray"
-              size="sm"
-              className="mt-2"
-            >
-              ログをクリア
-            </Button>
-          )}
-        </Card>
-      </div>
-    </div>
+    <MainLayout currentPage={currentPage} onNavigate={(page) => setCurrentPage(page as Page)}>
+      {renderContent()}
+    </MainLayout>
   );
 }
 
