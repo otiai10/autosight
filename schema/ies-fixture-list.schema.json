@@ -3,11 +3,11 @@
   "$id": "ies-fixture-list-schema",
   "title": "IES照明器具リストスキーマ",
   "description": "IESアプリ用照明器具リストExcelファイルの構造定義。照明設計プロジェクトで使用する器具情報を管理するためのマスターデータ形式を規定する。",
-  "version": "1.0.0",
+  "version": "2.0.0",
 
   "excel": {
     "filePattern": "^\\d{6}_ies.*\\.xlsx$",
-    "filePatternDescription": "ファイル名は「YYMMDD_ies〜.xlsx」形式。例: 260102_iesアプリ用照明器具リスト例.xlsx",
+    "filePatternDescription": "ファイル名は「YYMMDD_ies〜.xlsx」形式。例: 260102_iesアプリ用照明器具リスト例_正規化後_v1.xlsx",
 
     "sheets": {
       "Fixture Base": {
@@ -23,8 +23,8 @@
             "name": "Spec No.",
             "type": "string",
             "required": true,
-            "pattern": "^[A-Z]\\d+[a-z]?$",
-            "description": "器具記号。図面や仕様書で器具を識別するためのユニークな記号。アルファベット大文字+数字の組み合わせで構成される。例: A01, A01n, D11w など。サフィックス（n, w, s等）はバリエーションを示す。"
+            "pattern": "^[A-Z]+\\d+[a-z]*$",
+            "description": "器具記号。図面や仕様書で器具を識別するためのユニークな記号。アルファベット大文字+数字の組み合わせで構成される。例: A01, A01n, D11w, KL01, FF01 など。サフィックス（n, w, s等）はバリエーションを示す。"
           },
           {
             "key": "date",
@@ -52,7 +52,7 @@
             "name": "Luminaire_Type",
             "type": "string",
             "required": true,
-            "description": "器具タイプの名称。器具の種類・用途を示す日本語名称。例: アジャスタブルダウンライト、ペンダント、ブラケット、間接照明など。括弧内に開口径や特殊仕様を記載する場合がある。"
+            "description": "器具タイプの名称。器具の種類・用途を示す日本語名称。改行で開口径や特殊仕様を記載。例: アジャスタブルダウンライト\\n(φ50)、ペンダント、ブラケット、間接照明など。"
           },
           {
             "key": "light_source_type",
@@ -62,30 +62,12 @@
             "description": "光源の種類。現在はほぼ全てLEDだが、既存器具との互換性のため他の光源タイプも定義可能。"
           },
           {
-            "key": "light_source_description",
-            "name": "Light source description",
-            "type": "string",
-            "description": "光源の詳細説明。LEDモジュールの型番や特殊な光源仕様がある場合に記載する。"
-          },
-          {
-            "key": "lamp_manufacturer",
-            "name": "Lamp_Manufacturer",
-            "type": "string",
-            "description": "光源（ランプ/モジュール）のメーカー名。器具本体と光源が別メーカーの場合に使用。一体型LEDの場合は「-」とする。"
-          },
-          {
-            "key": "lamp_model_code",
-            "name": "Lamp_Model_Code",
-            "type": "string",
-            "description": "光源の型番コード。交換用ランプの発注や在庫管理に使用する。一体型LEDの場合は「-」とする。"
-          },
-          {
             "key": "color_temp",
             "name": "色温度",
             "type": "string",
             "pattern": "^\\d+K$",
             "enum": ["2700K", "3000K", "3500K", "4000K", "5000K", "6500K"],
-            "description": "光源の色温度（ケルビン）。照明の色味を示す。2700K=電球色（暖色）、3000K=温白色、4000K=白色、5000K=昼白色、6500K=昼光色（寒色）。住宅・ホスピタリティは2700-3000K、オフィスは4000-5000Kが一般的。"
+            "description": "光源の色温度（ケルビン）。照明の色味を示す。2700K=電球色（暖色）、3000K=温白色、4000K=白色、5000K=昼白色、6500K=昼光色（寒色）。"
           },
           {
             "key": "beam_angle",
@@ -130,30 +112,55 @@
             "description": "器具メーカー名。日本の主要照明メーカー: コイズミ照明、大光電機、遠藤照明、パナソニック、オーデリック、山田照明、マックスレイなど。"
           },
           {
-            "key": "model",
-            "name": "器具型番",
+            "key": "fixture",
+            "name": "FIXTURE",
             "type": "string",
             "required": true,
-            "description": "メーカーの製品型番。発注・見積に使用する正式な型番を記載する。特注品の場合は「特注」または基本型番+「/特注加工」と記載。"
+            "description": "メーカーの製品型番。発注・見積に使用する正式な型番を記載する。"
+          },
+          {
+            "key": "model_note",
+            "name": "型番備考",
+            "type": "string",
+            "description": "型番に関する補足情報。特注品の場合は「特注加工」と記載。"
           },
           {
             "key": "control",
             "name": "制御",
             "type": "string",
             "enum": ["DALI調光", "PWM調光", "位相調光", "1-10V調光", "非調光", "Bluetooth", "無線"],
-            "description": "調光制御方式。DALI=デジタル制御（推奨）、PWM=パルス幅変調、位相調光=従来型調光器対応、1-10V=アナログ信号制御。照明制御システムとの互換性を確認する必要がある。"
+            "description": "調光制御方式。DALI=デジタル制御（推奨）、PWM=パルス幅変調、位相調光=従来型調光器対応、1-10V=アナログ信号制御。"
+          },
+          {
+            "key": "psu",
+            "name": "PSU",
+            "type": "string",
+            "description": "電源装置（Power Supply Unit）の情報。調光電源の型番など。例: DALI調光電源：XE92701"
           },
           {
             "key": "accessories",
-            "name": "アクセサリー",
+            "name": "ACCESSORIES",
             "type": "string",
-            "description": "付属品・オプション品の情報。調光電源、ルーバー、レンズ、フィルター等の型番を記載。複数ある場合はカンマまたは改行で区切る。これらは別途発注・コスト計上が必要な場合がある。"
+            "description": "付属品・オプション品の情報。ルーバー、レンズ、フィルター等の型番を記載。例: ハニカムルーバー：XE51946E"
           },
           {
             "key": "notes",
             "name": "注記",
             "type": "string",
-            "description": "特記事項・補足情報。塗装色指定（日塗工番号等）、開口寸法、防水仕様、特注内容など、図面・発注時に必要な追加情報を記載する。"
+            "description": "特記事項・補足情報。塗装色指定（日塗工番号等）、開口寸法、防水仕様、特注内容など。例: トリム指定色塗装(日塗工), Φ50"
+          },
+          {
+            "key": "product_link",
+            "name": "製品リンク",
+            "type": "string",
+            "format": "uri",
+            "description": "メーカーの製品ページURL。仕様確認や図面ダウンロードに使用する。"
+          },
+          {
+            "key": "ies_file_check",
+            "name": "IES File Check",
+            "type": "string",
+            "description": "IESファイル（配光データファイル）の有無や状態を示す。照明シミュレーションに必要。"
           },
           {
             "key": "cost_fixture",
@@ -186,29 +193,29 @@
 
         "metadata": {
           "title": {
-            "cell": "B1",
+            "cell": "B2",
             "type": "string",
             "fixed": "別紙：照明器具仕様集",
             "description": "シートタイトル。固定文言。"
           },
           "projectName": {
-            "cell": "D2",
+            "cell": "D3",
             "type": "string",
             "description": "プロジェクト名。建物名称や工事名称を記載する。"
           },
           "phase": {
-            "cell": "D3",
+            "cell": "D4",
             "type": "string",
             "enum": ["SD", "DD", "CD", "施工"],
             "description": "設計フェーズ。SD=基本設計、DD=実施設計、CD=工事契約図書、施工=施工段階。"
           },
           "area": {
-            "cell": "D4",
+            "cell": "D5",
             "type": "string",
             "description": "対象エリア。階数やゾーン名を記載。例: 1F, B1F-2F, 共用部 など。"
           },
           "date": {
-            "cell": "D5",
+            "cell": "D6",
             "type": "date",
             "description": "作成日/更新日。この仕様集の発行日を記載する。"
           }
@@ -216,7 +223,8 @@
 
         "fixtureCards": {
           "startColumn": "P",
-          "description": "P列以降に器具カードを横並びで配置。各カードは器具1台分の仕様を縦に表示する。"
+          "headerRow": 4,
+          "description": "P列以降に器具Spec No.が横並びで配置。各カードは器具1台分の仕様を縦に表示する。"
         }
       },
 
@@ -226,51 +234,192 @@
 
         "metadata": {
           "title": {
-            "cell": "B3",
+            "cell": "B4",
             "type": "string",
             "fixed": "照明器具リスト",
             "description": "シートタイトル。固定文言。"
           },
           "projectName": {
-            "cell": "C4",
+            "cell": "C5",
             "type": "string",
             "description": "プロジェクト名。建物名称や工事名称を記載する。"
           },
           "area": {
-            "cell": "C5",
+            "cell": "C6",
             "type": "string",
             "description": "対象エリア。複数階にまたがる場合はカンマ区切り。例: B1F, 1F"
           },
           "drawingNo": {
-            "cell": "C6",
+            "cell": "C7",
             "type": "string",
             "description": "図面番号。この器具リストが対応する電気図面の番号。例: E-2001, XXX-2001"
           },
           "date": {
-            "cell": "C7",
+            "cell": "C8",
             "type": "date",
             "description": "作成日/更新日。リスト発行日を記載する。"
           },
           "revision": {
-            "cell": "C8",
+            "cell": "C9",
             "type": "string",
             "pattern": "^[A-Z]?\\d+$",
             "description": "リビジョン番号。D0=初版、D1=1回目改訂など。Dは「Design」の略。施工段階ではC(Construction)を使用する場合もある。"
           }
         },
 
+        "headerRows": {
+          "row1": 11,
+          "row2": 12,
+          "description": "ヘッダーは2行構成。row1にカラム名、row2にサブカテゴリ（エリア別数量など）"
+        },
+        "dataStartRow": 14,
+
+        "columns": [
+          {
+            "key": "spec_no",
+            "name": "器具番号",
+            "column": "B",
+            "type": "string",
+            "description": "Fixture BaseのSpec No.を参照"
+          },
+          {
+            "key": "fixture_type",
+            "name": "器具タイプ",
+            "column": "C",
+            "type": "string",
+            "description": "Light source type（LED等）"
+          },
+          {
+            "key": "quantity",
+            "name": "台数",
+            "columns": {
+              "select": {"column": "E", "description": "SELECT数量"},
+              "prime": {"column": "F", "description": "PRIME数量"},
+              "areas": {
+                "description": "エリア別数量。列G以降に各エリア（B1F, 1F等）の数量を配置",
+                "dynamic": true
+              },
+              "total": {"column": "I", "description": "合計数量"}
+            },
+            "description": "器具の数量。SELECT/PRIMEおよびエリア別の内訳"
+          },
+          {
+            "key": "unit",
+            "name": "単位",
+            "column": "J",
+            "type": "string",
+            "description": "数量単位（個、m等）"
+          },
+          {
+            "key": "psu",
+            "name": "PSU情報",
+            "column": "J",
+            "type": "string",
+            "description": "電源装置の型番情報"
+          },
+          {
+            "key": "lamp_info",
+            "name": "ランプ",
+            "column": "L",
+            "type": "string",
+            "description": "色温度と配光角の組み合わせ。例: 2700K 20°"
+          },
+          {
+            "key": "recommended_manufacturer",
+            "name": "推奨メーカー",
+            "column": "M",
+            "type": "string",
+            "description": "Fixture Baseの光束値(Lumen)を表示"
+          },
+          {
+            "key": "recommended_model",
+            "name": "推奨型番",
+            "column": "N",
+            "type": "string",
+            "description": "Fixture Baseの消費電力を表示"
+          },
+          {
+            "key": "color_temp",
+            "name": "色温度/光色",
+            "column": "O",
+            "type": "string",
+            "description": "色温度"
+          },
+          {
+            "key": "unit_display",
+            "name": "単位表示",
+            "column": "P",
+            "type": "string",
+            "description": "数量単位（個等）"
+          },
+          {
+            "key": "model",
+            "name": "型番",
+            "column": "Q",
+            "type": "string",
+            "description": "器具型番"
+          },
+          {
+            "key": "manufacturer",
+            "name": "メーカー",
+            "column": "S",
+            "type": "string",
+            "description": "メーカー名"
+          },
+          {
+            "key": "control",
+            "name": "制御",
+            "column": "T",
+            "type": "string",
+            "description": "調光制御方式"
+          },
+          {
+            "key": "accessories",
+            "name": "アクセサリー類",
+            "column": "V",
+            "type": "string",
+            "description": "付属品情報"
+          },
+          {
+            "key": "notes",
+            "name": "注記",
+            "column": "W",
+            "type": "string",
+            "description": "特記事項"
+          }
+        ],
+
         "sections": {
           "priceReference": {
             "description": "金額参照セクション。定価見積からの参照金額を表示。",
-            "startColumn": "AB"
+            "headerCell": "AB11",
+            "headerText": "金額(定価見積から参照)",
+            "columns": {
+              "fixture": {"column": "Y", "name": "器具", "description": "器具本体価格"},
+              "driver": {"column": "Z", "name": "電源", "description": "電源装置価格"},
+              "options": {"column": "AA", "name": "オプション", "description": "オプション品価格"},
+              "unitPrice": {"column": "AB", "name": "器具単価", "description": "合計単価"},
+              "discountRate": {"column": "AC", "name": "掛け率（想定）", "description": "想定掛け率"},
+              "subtotal": {"column": "AD", "name": "小計", "description": "小計金額"}
+            }
           },
           "estimateReview": {
             "description": "見積もり精査セクション。実際の見積金額との比較検討用。",
-            "startColumn": "AF"
+            "headerCell": "AF11",
+            "headerText": "見積もり精査",
+            "columns": {
+              "estimatedPrice": {"column": "AF", "name": "見積単価", "description": "見積単価"},
+              "actualRate": {"column": "AG", "name": "掛け率", "description": "実際の掛け率"}
+            }
           },
           "veProposal": {
             "description": "VE案セクション。Value Engineering（コスト削減）提案用。代替器具や仕様変更案を記載。",
-            "startColumn": "AH"
+            "headerCell": "AH11",
+            "headerText": "VE案",
+            "columns": {
+              "priceDiff": {"column": "AH", "name": "増減額(参考金額)", "description": "VEによる金額増減"},
+              "veContent": {"column": "AI", "name": "VE内容", "description": "VE提案内容"}
+            }
           }
         }
       }
