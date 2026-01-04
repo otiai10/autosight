@@ -61,39 +61,6 @@ impl KoizumiProvider {
         Ok(None)
     }
 
-    /// 型番とオプションのPSU型番からitem_idを生成
-    fn build_item_id(model_number: &str, psu: Option<&str>) -> String {
-        match psu {
-            Some(p) if !p.is_empty() => format!("{}+{}", model_number, p),
-            _ => model_number.to_string(),
-        }
-    }
-
-    /// PSU付きで製品情報を取得
-    pub async fn fetch_product_info_with_psu(
-        &self,
-        model_number: &str,
-        psu: Option<&str>,
-    ) -> Result<ProductInfo, String> {
-        // 型番とPSUを結合してitem_idを生成
-        let item_id = Self::build_item_id(model_number, psu);
-        let encoded_id = item_id.replace('+', "%2B");
-
-        // IESファイルURLを取得
-        let ies_file_url = self.get_ies_download_url(&item_id).await?;
-
-        Ok(ProductInfo {
-            model_number: model_number.to_string(),
-            product_name: None,
-            price: None,
-            ies_file_url,
-            image_url: None,
-            product_page_url: Some(format!(
-                "{}/kensaku/item/detail/?itemid={}",
-                self.base_url, encoded_id
-            )),
-        })
-    }
 }
 
 impl Default for KoizumiProvider {
@@ -104,10 +71,6 @@ impl Default for KoizumiProvider {
 
 #[async_trait]
 impl ManufacturerProvider for KoizumiProvider {
-    fn id(&self) -> &str {
-        "koizumi"
-    }
-
     fn display_name(&self) -> &str {
         "コイズミ照明"
     }
@@ -121,12 +84,8 @@ impl ManufacturerProvider for KoizumiProvider {
 
     async fn fetch_product_info(&self, model_number: &str) -> Result<ProductInfo, String> {
         // 型番から直接製品ページにアクセス
-        // PSUが必要な場合は fetch_product_info_with_psu を使用
-        let item_id = Self::build_item_id(model_number, None);
-        let encoded_id = item_id.replace('+', "%2B");
-
         // IESファイルURLを取得
-        let ies_file_url = self.get_ies_download_url(&item_id).await?;
+        let ies_file_url = self.get_ies_download_url(model_number).await?;
 
         Ok(ProductInfo {
             model_number: model_number.to_string(),
@@ -136,7 +95,7 @@ impl ManufacturerProvider for KoizumiProvider {
             image_url: None,
             product_page_url: Some(format!(
                 "{}/kensaku/item/detail/?itemid={}",
-                self.base_url, encoded_id
+                self.base_url, model_number
             )),
         })
     }
@@ -201,53 +160,5 @@ mod tests {
         assert!(provider.can_handle("KOIZUMI"));
         assert!(!provider.can_handle("大光電機"));
         assert!(!provider.can_handle("パナソニック"));
-    }
-
-    #[test]
-    fn test_build_item_id() {
-        // PSUなし
-        assert_eq!(
-            KoizumiProvider::build_item_id("XD93319", None),
-            "XD93319"
-        );
-
-        // PSUあり
-        assert_eq!(
-            KoizumiProvider::build_item_id("XD93319", Some("XE92701")),
-            "XD93319+XE92701"
-        );
-
-        // 空のPSU
-        assert_eq!(
-            KoizumiProvider::build_item_id("XD93319", Some("")),
-            "XD93319"
-        );
-    }
-
-    #[tokio::test]
-    async fn test_fetch_product_info_with_psu() {
-        let provider = KoizumiProvider::new();
-
-        // PSU付きで実際のサイトにアクセス
-        let result = provider
-            .fetch_product_info_with_psu("XD93319", Some("XE92701"))
-            .await;
-
-        match result {
-            Ok(info) => {
-                assert_eq!(info.model_number, "XD93319");
-                assert!(info.product_page_url.is_some());
-                // IESファイルが利用可能であること
-                assert!(
-                    info.ies_file_url.is_some(),
-                    "IES file URL should be available for XD93319+XE92701"
-                );
-                println!("Product page: {:?}", info.product_page_url);
-                println!("IES URL: {:?}", info.ies_file_url);
-            }
-            Err(e) => {
-                panic!("Failed to fetch product info: {}", e);
-            }
-        }
     }
 }

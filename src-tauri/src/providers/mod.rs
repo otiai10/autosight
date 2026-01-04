@@ -66,9 +66,6 @@ impl DownloadResult {
 /// ProviderRegistryに登録するだけでよい。
 #[async_trait]
 pub trait ManufacturerProvider: Send + Sync {
-    /// メーカー識別子（英語小文字）
-    fn id(&self) -> &str;
-
     /// 表示名（日本語）
     fn display_name(&self) -> &str;
 
@@ -94,15 +91,6 @@ pub trait ManufacturerProvider: Send + Sync {
         model_number: &str,
         dest_path: &str,
     ) -> Result<DownloadResult, String>;
-
-    /// 製品画像をダウンロード（オプショナル）
-    async fn download_product_image(
-        &self,
-        _model_number: &str,
-        _dest_path: &str,
-    ) -> Result<DownloadResult, String> {
-        Err("Not implemented".to_string())
-    }
 }
 
 /// プロバイダーレジストリ
@@ -139,11 +127,6 @@ impl ProviderRegistry {
             .iter()
             .find(|p| p.can_handle(manufacturer))
             .cloned()
-    }
-
-    /// 登録済みプロバイダー一覧を取得
-    pub fn get_all_providers(&self) -> Vec<Arc<dyn ManufacturerProvider>> {
-        self.providers.clone()
     }
 
     /// 対応メーカー名一覧を取得
