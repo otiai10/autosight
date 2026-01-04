@@ -164,11 +164,22 @@ impl ManufacturerProvider for KoizumiProvider {
         // item_idを生成（PSUがある場合は結合）
         let item_id = Self::build_item_id(model_number, psu);
 
-        // IESファイルURLを取得
-        let ies_url = self
-            .get_ies_download_url(&item_id)
-            .await?
-            .ok_or_else(|| format!("IES file not available for: {}", item_id))?;
+        // IESファイルURLを取得（PSU指定時は見つからなければ型番のみで再検索）
+        let ies_url = match self.get_ies_download_url(&item_id).await? {
+            Some(url) => url,
+            None => {
+                // PSU指定ありで見つからない場合、型番のみで再検索
+                if psu.is_some_and(|p| !p.is_empty()) {
+                    self.get_ies_download_url(model_number)
+                        .await?
+                        .ok_or_else(|| {
+                            format!("IES file not found for: {} nor {}", item_id, model_number)
+                        })?
+                } else {
+                    return Err(format!("IES file not available for: {}", item_id));
+                }
+            }
+        };
 
         // IESファイルをダウンロード
         let response = self

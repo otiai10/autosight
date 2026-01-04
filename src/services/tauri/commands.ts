@@ -67,6 +67,7 @@ export async function batchDownloadIesFiles(
         specNo: item.specNo,
         manufacturer: item.manufacturer,
         modelNumber: item.modelNumber,
+        psu: item.psu,
       })),
       destDir: request.destDir,
     },

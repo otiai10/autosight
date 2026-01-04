@@ -68,6 +68,7 @@ export interface BatchDownloadItem {
   specNo: string;
   manufacturer: string;
   modelNumber: string;
+  psu?: string;
 }
 
 /** 一括ダウンロードリクエスト */

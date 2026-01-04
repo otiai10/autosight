@@ -182,6 +182,7 @@ function App() {
           specNo: item.fixture.specNo,
           manufacturer: item.fixture.manufacturer,
           modelNumber: item.fixture.fixture,
+          psu: item.fixture.psu,
         })),
         destDir,
       });
