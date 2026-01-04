@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Alert, Button, Card, Spinner, TextInput } from 'flowbite-react';
 import { HiArrowRight, HiCheck, HiFolder, HiFolderOpen, HiDownload, HiDocumentDownload } from 'react-icons/hi';
 import { open } from '@tauri-apps/plugin-dialog';
-import { writeFile } from '@tauri-apps/plugin-fs';
+import { readFile, writeFile } from '@tauri-apps/plugin-fs';
 import { revealItemInDir } from '@tauri-apps/plugin-opener';
 import { MainLayout } from './components/layout/MainLayout';
 import { FileDropZone } from './components/home/FileDropZone';
@@ -13,7 +13,7 @@ import { ProjectListPage } from './components/project/ProjectListPage';
 import { ProjectDetailPage } from './components/project/ProjectDetailPage';
 import { useProjectStore } from './hooks/useProjectStore';
 import { getSupportedManufacturers, batchDownloadIesFiles, listenDownloadProgress } from './services/tauri/commands';
-import { updateIesFileCheck } from './services/excel/parser';
+import { parseExcelFromBinary, updateIesFileCheck } from './services/excel/parser';
 import type { Fixture, FixtureSelection, BatchDownloadResult } from './types/fixture';
 import type { Project } from './types/project';
 import type { ParseResult } from './services/excel/parser';
@@ -258,18 +258,48 @@ function App() {
   }, [projectStore]);
 
   // プロジェクト詳細からIES取得ウィザードへ
-  const handleStartWizard = useCallback(() => {
-    if (selectedProject) {
-      // プロジェクトの設定を使用
-      if (selectedProject.ies_dir_path) {
-        setDestDir(selectedProject.ies_dir_path);
-      }
-      if (selectedProject.spec_excel_path) {
-        setFilePath(selectedProject.spec_excel_path);
-      }
+  const handleStartWizard = useCallback(async () => {
+    if (!selectedProject?.spec_excel_path || !selectedProject?.ies_dir_path) {
+      return;
     }
-    setCurrentPage('wizard');
-  }, [selectedProject]);
+
+    try {
+      // Excelファイルを読み込み
+      const excelPath = selectedProject.spec_excel_path;
+      const data = await readFile(excelPath);
+      const result = await parseExcelFromBinary(data);
+      const name = excelPath.split('/').pop() || excelPath;
+
+      // ステート更新
+      setFixtures(result.fixtures);
+      setFileName(name);
+      setFilePath(excelPath);
+      setWorkbook(result.workbook);
+      setFixtureBaseSheetName(result.fixtureBaseSheetName);
+      setWarnings(result.warnings);
+      setLastResult(null);
+      setSaveComplete(false);
+      setSaveError(null);
+
+      // プロジェクトで設定済みのIES保存先を使用
+      setDestDir(selectedProject.ies_dir_path);
+
+      // 選択状態を初期化（対応メーカーのみ選択）
+      setSelections(
+        result.fixtures.map((fixture) => ({
+          fixture,
+          selected: supportedManufacturers.some((m) => fixture.manufacturer.includes(m)),
+          downloadStatus: undefined,
+        }))
+      );
+
+      // ステップ1（処理画面）に進む
+      nextStep();
+      setCurrentPage('wizard');
+    } catch (err) {
+      console.error('Failed to load Excel:', err);
+    }
+  }, [selectedProject, supportedManufacturers, nextStep]);
 
   // ページに応じたコンテンツをレンダリング
   const renderContent = () => {
@@ -298,15 +328,38 @@ function App() {
 
       case 'wizard':
         return (
-          <WizardContainer
-            steps={WIZARD_STEPS}
-            currentStep={currentStep}
-            completedSteps={completedSteps}
-            onStepClick={goToStep}
-            canNavigateToStep={canNavigateToStep}
-          >
-            {/* Step 0: ファイル読込 */}
-            <FileDropZone onFileLoaded={handleFileLoaded} />
+          <div className="space-y-4">
+            {/* プロジェクト情報バナー */}
+            {selectedProject && (
+              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg px-4 py-2">
+                <div className="flex items-center gap-4 text-xs text-blue-700 dark:text-blue-300">
+                  <span className="font-mono bg-blue-100 dark:bg-blue-800 px-2 py-0.5 rounded">
+                    {selectedProject.id}
+                  </span>
+                  <span className="truncate flex-1" title={selectedProject.root_dir}>
+                    {selectedProject.root_dir}
+                  </span>
+                </div>
+                <div className="flex gap-6 mt-1 text-xs text-blue-600 dark:text-blue-400">
+                  <span title={selectedProject.spec_excel_path}>
+                    Excel: {selectedProject.spec_excel_path?.split('/').pop() || '未設定'}
+                  </span>
+                  <span title={selectedProject.ies_dir_path}>
+                    IES: {selectedProject.ies_dir_path?.split('/').pop() || '未設定'}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            <WizardContainer
+              steps={WIZARD_STEPS}
+              currentStep={currentStep}
+              completedSteps={completedSteps}
+              onStepClick={goToStep}
+              canNavigateToStep={canNavigateToStep}
+            >
+              {/* Step 0: ファイル読込 */}
+              <FileDropZone onFileLoaded={handleFileLoaded} />
 
             {/* Step 1: 処理（一覧+DL+保存） */}
             <div className="space-y-4">
@@ -477,6 +530,7 @@ function App() {
               </div>
             </div>
           </WizardContainer>
+          </div>
         );
 
       case 'settings':
