@@ -9,14 +9,18 @@ import { FileDropZone } from './components/home/FileDropZone';
 import { FixtureTable } from './components/fixtures/FixtureTable';
 import { WizardContainer } from './components/wizard/WizardContainer';
 import { useWizardState } from './components/wizard/useWizardState';
+import { ProjectListPage } from './components/project/ProjectListPage';
+import { ProjectDetailPage } from './components/project/ProjectDetailPage';
+import { useProjectStore } from './hooks/useProjectStore';
 import { getSupportedManufacturers, batchDownloadIesFiles, listenDownloadProgress } from './services/tauri/commands';
 import { updateIesFileCheck } from './services/excel/parser';
 import type { Fixture, FixtureSelection, BatchDownloadResult } from './types/fixture';
+import type { Project } from './types/project';
 import type { ParseResult } from './services/excel/parser';
 import type { StepConfig } from './components/wizard/WizardStepper';
 import type { Workbook } from 'exceljs';
 
-type Page = 'wizard' | 'settings';
+type Page = 'project' | 'project-detail' | 'wizard' | 'settings';
 
 const WIZARD_STEPS: StepConfig[] = [
   { id: 'file', label: 'ファイル読込', description: 'Excelを選択' },
@@ -25,7 +29,15 @@ const WIZARD_STEPS: StepConfig[] = [
 ];
 
 function App() {
-  const [currentPage, setCurrentPage] = useState<Page>('wizard');
+  const [currentPage, setCurrentPage] = useState<Page>('project');
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const projectStore = useProjectStore();
+
+  // 選択中のプロジェクトを取得（更新をリアルタイムで反映）
+  const selectedProject = projectStore.projects.find(
+    (p) => p.id === selectedProjectId
+  ) || null;
+
   const [fixtures, setFixtures] = useState<Fixture[]>([]);
   const [selections, setSelections] = useState<FixtureSelection[]>([]);
   const [fileName, setFileName] = useState<string>('');
@@ -238,9 +250,52 @@ function App() {
   const canDownload = selectedCount > 0 && destDir && !isDownloading;
   const canSave = lastResult && lastResult.successCount > 0 && !isSaving && !saveComplete;
 
+  // プロジェクト選択時のハンドラー
+  const handleSelectProject = useCallback((project: Project) => {
+    setSelectedProjectId(project.id);
+    projectStore.selectProject(project.id);
+    setCurrentPage('project-detail');
+  }, [projectStore]);
+
+  // プロジェクト詳細からIES取得ウィザードへ
+  const handleStartWizard = useCallback(() => {
+    if (selectedProject) {
+      // プロジェクトの設定を使用
+      if (selectedProject.ies_dir_path) {
+        setDestDir(selectedProject.ies_dir_path);
+      }
+      if (selectedProject.spec_excel_path) {
+        setFilePath(selectedProject.spec_excel_path);
+      }
+    }
+    setCurrentPage('wizard');
+  }, [selectedProject]);
+
   // ページに応じたコンテンツをレンダリング
   const renderContent = () => {
     switch (currentPage) {
+      case 'project':
+        return (
+          <ProjectListPage
+            store={projectStore}
+            onSelectProject={handleSelectProject}
+          />
+        );
+
+      case 'project-detail':
+        if (!selectedProject) {
+          setCurrentPage('project');
+          return null;
+        }
+        return (
+          <ProjectDetailPage
+            project={selectedProject}
+            store={projectStore}
+            onBack={() => setCurrentPage('project')}
+            onStartWizard={handleStartWizard}
+          />
+        );
+
       case 'wizard':
         return (
           <WizardContainer

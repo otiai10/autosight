@@ -22,6 +22,7 @@
     "exceljs": "^4.4.0",
     "flowbite": "^4.0.1",
     "flowbite-react": "^0.12.15",
+    "nanoid": "^5.1.6",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-icons": "^5.5.0"
