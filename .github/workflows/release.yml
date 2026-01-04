@@ -1,0 +1,87 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., 0.1.0)'
+        required: false
+        default: ''
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build Tauri app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: 'AutoSight ${{ github.ref_name }}'
+          releaseBody: |
+            ## AutoSight ${{ github.ref_name }}
+
+            ### インストール方法
+            1. `AutoSight_${{ github.ref_name }}_x64-setup.exe` をダウンロード
+            2. ダウンロードしたファイルを実行してインストール
+
+            ### 変更点
+            リリースノートを参照してください。
+          releaseDraft: true
+          prerelease: false
+
+  # macOS版も必要な場合はこちらを有効化
+  # build-macos:
+  #   runs-on: macos-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: pnpm/action-setup@v4
+  #       with:
+  #         version: 10
+  #     - uses: actions/setup-node@v4
+  #       with:
+  #         node-version: '22'
+  #         cache: 'pnpm'
+  #     - uses: dtolnay/rust-toolchain@stable
+  #     - uses: swatinem/rust-cache@v2
+  #       with:
+  #         workspaces: './src-tauri -> target'
+  #     - run: pnpm install
+  #     - uses: tauri-apps/tauri-action@v0
+  #       env:
+  #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  #       with:
+  #         tagName: ${{ github.ref_name }}
+  #         releaseName: 'AutoSight ${{ github.ref_name }}'
+  #         releaseDraft: true
+  #         prerelease: false
