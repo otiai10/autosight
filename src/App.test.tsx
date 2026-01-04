@@ -51,9 +51,15 @@ describe('App', () => {
 
       render(<App />);
 
-      // 初期状態: ホーム画面のファイル選択ボタンが表示される
+      // 初期状態: プロジェクト画面が表示される → IES取得をクリック
+      await user.click(screen.getByRole('button', { name: /IES取得/i }));
+
+      // ウィザード画面でファイル選択ボタンが表示される
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /ファイルを選択/i })).toBeInTheDocument();
+      });
+
       const selectButton = screen.getByRole('button', { name: /ファイルを選択/i });
-      expect(selectButton).toBeInTheDocument();
 
       // ファイル選択ボタンをクリック
       await user.click(selectButton);
@@ -108,6 +114,12 @@ describe('App', () => {
 
       render(<App />);
 
+      // IES取得をクリックしてウィザード画面へ
+      await user.click(screen.getByRole('button', { name: /IES取得/i }));
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /ファイルを選択/i })).toBeInTheDocument();
+      });
+
       await user.click(screen.getByRole('button', { name: /ファイルを選択/i }));
 
       // 器具一覧画面に遷移するまで待機
@@ -135,12 +147,18 @@ describe('App', () => {
 
       render(<App />);
 
+      // IES取得をクリックしてウィザード画面へ
+      await user.click(screen.getByRole('button', { name: /IES取得/i }));
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /ファイルを選択/i })).toBeInTheDocument();
+      });
+
       await user.click(screen.getByRole('button', { name: /ファイルを選択/i }));
 
       // ファイル読み込みは呼ばれない
       expect(readFile).not.toHaveBeenCalled();
 
-      // ホーム画面のままであることを確認
+      // ウィザード画面のままであることを確認
       expect(screen.getByText(/Excelファイルをドラッグ/i)).toBeInTheDocument();
     });
 
@@ -152,6 +170,12 @@ describe('App', () => {
       vi.mocked(readFile).mockResolvedValue(mockExcelData);
 
       render(<App />);
+
+      // IES取得をクリックしてウィザード画面へ
+      await user.click(screen.getByRole('button', { name: /IES取得/i }));
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /ファイルを選択/i })).toBeInTheDocument();
+      });
 
       await user.click(screen.getByRole('button', { name: /ファイルを選択/i }));
 
@@ -173,7 +197,7 @@ describe('App', () => {
         expect(screen.getByRole('heading', { name: '設定' })).toBeInTheDocument();
       });
 
-      // IES取得（ホーム）に戻る
+      // IES取得（ウィザード）に遷移
       await user.click(screen.getByText('IES取得'));
       await waitFor(() => {
         expect(screen.getByText(/Excelファイルをドラッグ/i)).toBeInTheDocument();
