@@ -131,33 +131,14 @@ pub async fn batch_download_ies_files(
             {
                 Ok(mut r) => {
                     if r.success {
-                        // 元ファイル名を使って最終ファイル名を生成
-                        // 形式: {Spec No.}_{型番}_{PSU}_{元ファイル名}.ies
-                        let safe_model = item.model_number.replace("/", "_").replace("\\", "_");
-                        let psu_part = item
-                            .psu
-                            .as_ref()
-                            .filter(|p| !p.is_empty())
-                            .map(|p| format!("_{}", p.replace("/", "_").replace("\\", "_")))
-                            .unwrap_or_default();
-                        let orig_part = r
-                            .original_filename
-                            .as_ref()
-                            .map(|f| {
-                                // 拡張子を除いたファイル名を取得
-                                let name = f.trim_end_matches(".ies").trim_end_matches(".IES");
-                                format!("_{}", name)
-                            })
-                            .unwrap_or_default();
-
-                        let final_filename = format!(
-                            "{}{}{}.ies",
-                            safe_model, psu_part, orig_part
+                        // プロバイダーの命名規則でファイル名を生成
+                        let filename = provider.generate_filename(
+                            &item.spec_no,
+                            &item.model_number,
+                            item.psu.as_deref(),
+                            r.original_filename.as_deref(),
                         );
-                        let final_path = format!(
-                            "{}/{}_{}",
-                            request.dest_dir, item.spec_no, final_filename
-                        );
+                        let final_path = format!("{}/{}", request.dest_dir, filename);
 
                         // ファイルをリネーム
                         if let Err(e) = std::fs::rename(&temp_path, &final_path) {

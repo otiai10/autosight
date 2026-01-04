@@ -127,6 +127,34 @@ impl ManufacturerProvider for KoizumiProvider {
         })
     }
 
+    fn generate_filename(
+        &self,
+        spec_no: &str,
+        model_number: &str,
+        psu: Option<&str>,
+        original_filename: Option<&str>,
+    ) -> String {
+        // コイズミの場合、元ファイル名に型番+PSUが含まれている
+        // 形式: {Spec No.}_{元ファイル名}
+        // 元ファイル名がない場合: {Spec No.}_{型番}_{PSU}.ies
+        match original_filename {
+            Some(orig) => {
+                let name = orig.trim_end_matches(".ies").trim_end_matches(".IES");
+                format!("{}_{}.ies", spec_no, name)
+            }
+            None => {
+                let safe_model = model_number.replace("/", "_").replace("\\", "_");
+                match psu {
+                    Some(p) if !p.is_empty() => {
+                        let safe_psu = p.replace("/", "_").replace("\\", "_");
+                        format!("{}_{}+{}.ies", spec_no, safe_model, safe_psu)
+                    }
+                    _ => format!("{}_{}.ies", spec_no, safe_model),
+                }
+            }
+        }
+    }
+
     async fn download_ies_file(
         &self,
         model_number: &str,

@@ -97,6 +97,23 @@ pub trait ManufacturerProvider: Send + Sync {
         psu: Option<&str>,
         dest_path: &str,
     ) -> Result<DownloadResult, String>;
+
+    /// ダウンロード後のファイル名を生成
+    ///
+    /// プロバイダーごとに最適な命名規則を実装する。
+    ///
+    /// # Arguments
+    /// * `spec_no` - Spec No.
+    /// * `model_number` - 型番
+    /// * `psu` - PSU型番（オプション）
+    /// * `original_filename` - サーバーから取得した元ファイル名（オプション）
+    fn generate_filename(
+        &self,
+        spec_no: &str,
+        model_number: &str,
+        psu: Option<&str>,
+        original_filename: Option<&str>,
+    ) -> String;
 }
 
 /// プロバイダーレジストリ
