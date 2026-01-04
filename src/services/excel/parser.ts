@@ -35,7 +35,7 @@ const COLUMN_MAPPING: Record<string, keyof Fixture> = {
 };
 
 /** 必須カラム */
-const REQUIRED_COLUMNS = ['Spec No.', 'Luminaire_Type', 'メーカー', 'FIXTURE'];
+const REQUIRED_COLUMNS = ['Spec No.', 'メーカー', 'FIXTURE'];
 
 export interface ParseResult {
   fixtures: Fixture[];
@@ -44,10 +44,21 @@ export interface ParseResult {
 }
 
 /**
- * Excelファイルを解析してFixture配列を返す
+ * Excelのシリアル日付をJavaScript Dateに変換
  */
-export function parseExcelFile(arrayBuffer: ArrayBuffer): ParseResult {
-  const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+function excelDateToJSDate(serial: number): Date {
+  const utcDays = Math.floor(serial - 25569);
+  const utcValue = utcDays * 86400;
+  return new Date(utcValue * 1000);
+}
+
+/**
+ * バイナリデータからExcelを解析
+ */
+export function parseExcelFromBinary(data: Uint8Array): ParseResult {
+  // 新しいUint8Arrayにコピーして確実にオフセット0から始まるようにする
+  const cleanData = new Uint8Array(data);
+  const workbook = XLSX.read(cleanData, { type: 'array' });
   const warnings: string[] = [];
 
   // Fixture Baseシートを探す
@@ -109,7 +120,6 @@ export function parseExcelFile(arrayBuffer: ArrayBuffer): ParseResult {
       switch (fixtureKey) {
         case 'date':
           if (typeof value === 'number') {
-            // Excelのシリアル日付を変換
             fixture[fixtureKey] = excelDateToJSDate(value);
           }
           break;
@@ -129,7 +139,6 @@ export function parseExcelFile(arrayBuffer: ArrayBuffer): ParseResult {
 
     // 必須フィールドのチェック
     if (fixture.specNo && fixture.manufacturer && fixture.fixture) {
-      // luminaireTypeがない場合はデフォルト値を設定
       if (!fixture.luminaireType) {
         fixture.luminaireType = '不明';
       }
@@ -142,32 +151,4 @@ export function parseExcelFile(arrayBuffer: ArrayBuffer): ParseResult {
     warnings,
     sheetNames: workbook.SheetNames,
   };
-}
-
-/**
- * Excelのシリアル日付をJavaScript Dateに変換
- */
-function excelDateToJSDate(serial: number): Date {
-  const utcDays = Math.floor(serial - 25569);
-  const utcValue = utcDays * 86400;
-  return new Date(utcValue * 1000);
-}
-
-/**
- * ファイルからArrayBufferを読み込む
- */
-export async function readFileAsArrayBuffer(file: File): Promise<ArrayBuffer> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as ArrayBuffer);
-    reader.onerror = () => reject(reader.error);
-    reader.readAsArrayBuffer(file);
-  });
-}
-
-/**
- * バイナリデータからExcelを解析
- */
-export function parseExcelFromBinary(data: Uint8Array): ParseResult {
-  return parseExcelFile(data.buffer);
 }

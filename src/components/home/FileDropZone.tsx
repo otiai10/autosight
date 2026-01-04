@@ -34,18 +34,23 @@ export function FileDropZone({ onFileLoaded }: FileDropZoneProps) {
   );
 
   const handleSelectFile = async () => {
-    const selected = await open({
-      multiple: false,
-      filters: [
-        {
-          name: 'Excel',
-          extensions: ['xlsx', 'xls', 'xlsm'],
-        },
-      ],
-    });
+    try {
+      const selected = await open({
+        multiple: false,
+        filters: [
+          {
+            name: 'Excel',
+            extensions: ['xlsx', 'xls', 'xlsm'],
+          },
+        ],
+      });
 
-    if (selected && typeof selected === 'string') {
-      await handleFile(selected);
+      if (selected) {
+        const filePath = typeof selected === 'string' ? selected : String(selected);
+        await handleFile(filePath);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'ファイル選択に失敗しました');
     }
   };
 

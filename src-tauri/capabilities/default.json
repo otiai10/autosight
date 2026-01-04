@@ -8,9 +8,22 @@
     "opener:default",
     "dialog:default",
     "fs:default",
-    "fs:allow-read",
-    "fs:allow-write",
-    "fs:write-all",
+    {
+      "identifier": "fs:allow-read-text-file",
+      "allow": [{ "path": "**" }]
+    },
+    {
+      "identifier": "fs:allow-read-file",
+      "allow": [{ "path": "**" }]
+    },
+    {
+      "identifier": "fs:allow-write-file",
+      "allow": [{ "path": "**" }]
+    },
+    {
+      "identifier": "fs:allow-mkdir",
+      "allow": [{ "path": "**" }]
+    },
     "store:default",
     {
       "identifier": "http:default",
