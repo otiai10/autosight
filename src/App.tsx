@@ -147,7 +147,6 @@ function App() {
     );
 
     try {
-      console.log('Starting download...', { destDir, itemCount: selectedItems.length });
       const result = await batchDownloadIesFiles({
         items: selectedItems.map((item) => ({
           specNo: item.fixture.specNo,
@@ -156,7 +155,6 @@ function App() {
         })),
         destDir,
       });
-      console.log('Download result:', result);
 
       // 結果を反映
       setSelections((prev) =>
