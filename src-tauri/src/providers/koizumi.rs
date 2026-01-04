@@ -34,12 +34,36 @@ impl KoizumiProvider {
         re.captures(psu).map(|caps| caps.get(1).unwrap().as_str())
     }
 
-    /// 型番とPSUからitem_idを生成
-    fn build_item_id(model_number: &str, psu: Option<&str>) -> String {
-        match psu.and_then(Self::extract_psu_model_number) {
-            Some(psu_model) => format!("{}+{}", model_number, psu_model),
-            _ => model_number.to_string(),
+    /// FIXTURE文字列から型番を抽出
+    /// 複数の型番がある場合（例: "本体：AH92025L\nユニット：AE49422L"）はすべて抽出
+    /// 単一の型番の場合（例: "XD93319"）はそのまま返す
+    fn extract_fixture_model_numbers(fixture: &str) -> Vec<String> {
+        // コロン区切りパターン（本体：XX, ユニット：XX）を検索
+        let re = Regex::new(r"[:：]\s*([A-Za-z0-9]+)").unwrap();
+        let matches: Vec<String> = re
+            .captures_iter(fixture)
+            .filter_map(|caps| caps.get(1).map(|m| m.as_str().to_string()))
+            .collect();
+
+        if matches.is_empty() {
+            // コロンパターンがない場合は全体を1つの型番として扱う
+            vec![fixture.trim().to_string()]
+        } else {
+            matches
         }
+    }
+
+    /// FIXTURE型番（複数可）とPSUからitem_idを生成
+    /// 例: "本体：AH92025L\nユニット：AE49422L", Some("DALI調光電源：XE92701")
+    ///     → "AH92025L+AE49422L+XE92701"
+    fn build_item_id(fixture: &str, psu: Option<&str>) -> String {
+        let mut parts = Self::extract_fixture_model_numbers(fixture);
+
+        if let Some(psu_model) = psu.and_then(Self::extract_psu_model_number) {
+            parts.push(psu_model.to_string());
+        }
+
+        parts.join("+")
     }
 
     /// 製品ページからIESファイルのダウンロードURLを取得
@@ -289,29 +313,71 @@ mod tests {
     }
 
     #[test]
+    fn test_extract_fixture_model_numbers() {
+        // 単一の型番（コロンなし）
+        assert_eq!(
+            KoizumiProvider::extract_fixture_model_numbers("XD93319"),
+            vec!["XD93319"]
+        );
+
+        // 複数の型番（本体＋ユニット）
+        assert_eq!(
+            KoizumiProvider::extract_fixture_model_numbers("本体：AH92025L\nユニット：AE49422L"),
+            vec!["AH92025L", "AE49422L"]
+        );
+
+        // 半角コロン
+        assert_eq!(
+            KoizumiProvider::extract_fixture_model_numbers("本体: AH92025L\nユニット: AE49422L"),
+            vec!["AH92025L", "AE49422L"]
+        );
+
+        // 単一の型番（コロン付き）
+        assert_eq!(
+            KoizumiProvider::extract_fixture_model_numbers("本体：XD93319"),
+            vec!["XD93319"]
+        );
+    }
+
+    #[test]
     fn test_build_item_id() {
-        // PSU型番あり
+        // 単一型番 + PSU型番あり
         assert_eq!(
             KoizumiProvider::build_item_id("AD12345", Some("DALI調光電源：XE92701")),
             "AD12345+XE92701"
         );
 
-        // PSU型番なし（説明のみ）
+        // 単一型番 + PSU型番なし（説明のみ）
         assert_eq!(
             KoizumiProvider::build_item_id("AD12345", Some("DALI調光電源")),
             "AD12345"
         );
 
-        // PSU指定なし
+        // 単一型番 + PSU指定なし
         assert_eq!(
             KoizumiProvider::build_item_id("AD12345", None),
             "AD12345"
         );
 
-        // 空文字
+        // 単一型番 + 空文字
         assert_eq!(
             KoizumiProvider::build_item_id("AD12345", Some("")),
             "AD12345"
+        );
+
+        // 複数型番（本体＋ユニット） + PSUなし
+        assert_eq!(
+            KoizumiProvider::build_item_id("本体：AH92025L\nユニット：AE49422L", None),
+            "AH92025L+AE49422L"
+        );
+
+        // 複数型番（本体＋ユニット） + PSU型番あり
+        assert_eq!(
+            KoizumiProvider::build_item_id(
+                "本体：AH92025L\nユニット：AE49422L",
+                Some("DALI調光電源：XE92701")
+            ),
+            "AH92025L+AE49422L+XE92701"
         );
     }
 }
