@@ -25,6 +25,14 @@ impl KoizumiProvider {
         }
     }
 
+    /// 型番とPSUからitem_idを生成
+    fn build_item_id(model_number: &str, psu: Option<&str>) -> String {
+        match psu {
+            Some(p) if !p.is_empty() => format!("{}+{}", model_number, p),
+            _ => model_number.to_string(),
+        }
+    }
+
     /// 製品ページからIESファイルのダウンロードURLを取得
     /// item_id: 型番（PSUがある場合は "型番+PSU型番" 形式）
     async fn get_ies_download_url(&self, item_id: &str) -> Result<Option<String>, String> {
@@ -61,6 +69,25 @@ impl KoizumiProvider {
         Ok(None)
     }
 
+    /// Content-Dispositionヘッダーからファイル名を抽出
+    fn extract_filename_from_header(header_value: &str) -> Option<String> {
+        // パターン: filename="xxx.ies" または filename*=UTF-8''xxx.ies
+        if let Some(start) = header_value.find("filename=") {
+            let rest = &header_value[start + 9..];
+            let filename = if rest.starts_with('"') {
+                // filename="xxx.ies"
+                rest.trim_start_matches('"')
+                    .split('"')
+                    .next()
+                    .map(|s| s.to_string())
+            } else {
+                // filename=xxx.ies
+                rest.split(';').next().map(|s| s.trim().to_string())
+            };
+            return filename;
+        }
+        None
+    }
 }
 
 impl Default for KoizumiProvider {
@@ -103,14 +130,17 @@ impl ManufacturerProvider for KoizumiProvider {
     async fn download_ies_file(
         &self,
         model_number: &str,
+        psu: Option<&str>,
         dest_path: &str,
     ) -> Result<DownloadResult, String> {
-        // 製品情報を取得
-        let product_info = self.fetch_product_info(model_number).await?;
+        // item_idを生成（PSUがある場合は結合）
+        let item_id = Self::build_item_id(model_number, psu);
 
-        let ies_url = product_info
-            .ies_file_url
-            .ok_or_else(|| format!("IES file not available for: {}", model_number))?;
+        // IESファイルURLを取得
+        let ies_url = self
+            .get_ies_download_url(&item_id)
+            .await?
+            .ok_or_else(|| format!("IES file not available for: {}", item_id))?;
 
         // IESファイルをダウンロード
         let response = self
@@ -126,6 +156,13 @@ impl ManufacturerProvider for KoizumiProvider {
                 response.status()
             )));
         }
+
+        // Content-Dispositionヘッダーから元のファイル名を取得
+        let original_filename = response
+            .headers()
+            .get("content-disposition")
+            .and_then(|h| h.to_str().ok())
+            .and_then(Self::extract_filename_from_header);
 
         let bytes = response
             .bytes()
@@ -144,7 +181,11 @@ impl ManufacturerProvider for KoizumiProvider {
         std::fs::write(dest_path, &bytes)
             .map_err(|e| format!("Failed to write file: {}", e))?;
 
-        Ok(DownloadResult::success(dest_path.to_string(), file_size))
+        Ok(DownloadResult::success(
+            dest_path.to_string(),
+            file_size,
+            original_filename,
+        ))
     }
 }
 

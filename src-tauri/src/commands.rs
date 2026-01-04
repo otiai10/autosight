@@ -40,6 +40,8 @@ pub struct BatchDownloadItem {
     pub manufacturer: String,
     /// 型番
     pub model_number: String,
+    /// PSU型番（オプション）
+    pub psu: Option<String>,
 }
 
 /// 一括ダウンロードの結果
@@ -90,6 +92,7 @@ pub async fn download_ies_file(
     registry: State<'_, Arc<Mutex<ProviderRegistry>>>,
     manufacturer: String,
     model_number: String,
+    psu: Option<String>,
     dest_path: String,
 ) -> Result<DownloadResult, String> {
     let registry = registry.lock().await;
@@ -97,7 +100,9 @@ pub async fn download_ies_file(
         .get_provider(&manufacturer)
         .ok_or_else(|| format!("No provider for manufacturer: {}", manufacturer))?;
 
-    provider.download_ies_file(&model_number, &dest_path).await
+    provider
+        .download_ies_file(&model_number, psu.as_deref(), &dest_path)
+        .await
 }
 
 /// IESファイルを一括ダウンロード
@@ -112,16 +117,57 @@ pub async fn batch_download_ies_files(
     let mut failure_count = 0;
 
     for item in &request.items {
-        let dest_path = format!(
-            "{}/{}_{}.ies",
+        // 一時ファイル名でダウンロード（後で元ファイル名を使ってリネーム）
+        let temp_path = format!(
+            "{}/temp_{}.ies",
             request.dest_dir,
-            item.spec_no,
-            item.model_number.replace("/", "_")
+            item.spec_no
         );
 
         let result = if let Some(provider) = registry.get_provider(&item.manufacturer) {
-            match provider.download_ies_file(&item.model_number, &dest_path).await {
-                Ok(r) => r,
+            match provider
+                .download_ies_file(&item.model_number, item.psu.as_deref(), &temp_path)
+                .await
+            {
+                Ok(mut r) => {
+                    if r.success {
+                        // 元ファイル名を使って最終ファイル名を生成
+                        // 形式: {Spec No.}_{型番}_{PSU}_{元ファイル名}.ies
+                        let safe_model = item.model_number.replace("/", "_").replace("\\", "_");
+                        let psu_part = item
+                            .psu
+                            .as_ref()
+                            .filter(|p| !p.is_empty())
+                            .map(|p| format!("_{}", p.replace("/", "_").replace("\\", "_")))
+                            .unwrap_or_default();
+                        let orig_part = r
+                            .original_filename
+                            .as_ref()
+                            .map(|f| {
+                                // 拡張子を除いたファイル名を取得
+                                let name = f.trim_end_matches(".ies").trim_end_matches(".IES");
+                                format!("_{}", name)
+                            })
+                            .unwrap_or_default();
+
+                        let final_filename = format!(
+                            "{}{}{}.ies",
+                            safe_model, psu_part, orig_part
+                        );
+                        let final_path = format!(
+                            "{}/{}_{}",
+                            request.dest_dir, item.spec_no, final_filename
+                        );
+
+                        // ファイルをリネーム
+                        if let Err(e) = std::fs::rename(&temp_path, &final_path) {
+                            r = DownloadResult::failure(format!("Failed to rename file: {}", e));
+                        } else {
+                            r.file_path = Some(final_path);
+                        }
+                    }
+                    r
+                }
                 Err(e) => DownloadResult::failure(e),
             }
         } else {

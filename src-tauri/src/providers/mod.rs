@@ -35,16 +35,19 @@ pub struct DownloadResult {
     pub file_path: Option<String>,
     /// ファイルサイズ（バイト）
     pub file_size: Option<u64>,
+    /// 元のファイル名（サーバーから取得）
+    pub original_filename: Option<String>,
     /// エラーメッセージ
     pub error: Option<String>,
 }
 
 impl DownloadResult {
-    pub fn success(file_path: String, file_size: u64) -> Self {
+    pub fn success(file_path: String, file_size: u64, original_filename: Option<String>) -> Self {
         Self {
             success: true,
             file_path: Some(file_path),
             file_size: Some(file_size),
+            original_filename,
             error: None,
         }
     }
@@ -54,6 +57,7 @@ impl DownloadResult {
             success: false,
             file_path: None,
             file_size: None,
+            original_filename: None,
             error: Some(error),
         }
     }
@@ -85,10 +89,12 @@ pub trait ManufacturerProvider: Send + Sync {
     ///
     /// # Arguments
     /// * `model_number` - 型番
+    /// * `psu` - PSU型番（オプション）
     /// * `dest_path` - 保存先ファイルパス
     async fn download_ies_file(
         &self,
         model_number: &str,
+        psu: Option<&str>,
         dest_path: &str,
     ) -> Result<DownloadResult, String>;
 }
