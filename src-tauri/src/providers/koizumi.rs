@@ -25,10 +25,19 @@ impl KoizumiProvider {
         }
     }
 
+    /// PSU文字列から型番部分を抽出
+    /// 例: "DALI調光電源：XE92701" → Some("XE92701")
+    /// 例: "DALI調光電源" → None
+    fn extract_psu_model_number(psu: &str) -> Option<&str> {
+        // 半角または全角コロンで分割し、末尾の英数字部分を抽出
+        let re = Regex::new(r"[:：]\s*([A-Za-z0-9]+)$").unwrap();
+        re.captures(psu).map(|caps| caps.get(1).unwrap().as_str())
+    }
+
     /// 型番とPSUからitem_idを生成
     fn build_item_id(model_number: &str, psu: Option<&str>) -> String {
-        match psu {
-            Some(p) if !p.is_empty() => format!("{}+{}", model_number, p),
+        match psu.and_then(Self::extract_psu_model_number) {
+            Some(psu_model) => format!("{}+{}", model_number, psu_model),
             _ => model_number.to_string(),
         }
     }
@@ -240,5 +249,69 @@ mod tests {
         assert!(provider.can_handle("KOIZUMI"));
         assert!(!provider.can_handle("大光電機"));
         assert!(!provider.can_handle("パナソニック"));
+    }
+
+    #[test]
+    fn test_extract_psu_model_number() {
+        // 全角コロン付き
+        assert_eq!(
+            KoizumiProvider::extract_psu_model_number("DALI調光電源：XE92701"),
+            Some("XE92701")
+        );
+        assert_eq!(
+            KoizumiProvider::extract_psu_model_number("非調光電源：XE92184E"),
+            Some("XE92184E")
+        );
+        assert_eq!(
+            KoizumiProvider::extract_psu_model_number("多灯用直流電源装置別置：ELD24320FD"),
+            Some("ELD24320FD")
+        );
+
+        // 半角コロン付き
+        assert_eq!(
+            KoizumiProvider::extract_psu_model_number("DALI調光電源: XE92701"),
+            Some("XE92701")
+        );
+
+        // 型番なし
+        assert_eq!(
+            KoizumiProvider::extract_psu_model_number("DALI調光電源"),
+            None
+        );
+        assert_eq!(
+            KoizumiProvider::extract_psu_model_number("専用電源、"),
+            None
+        );
+        assert_eq!(
+            KoizumiProvider::extract_psu_model_number("適合DALI電源ドライバー"),
+            None
+        );
+    }
+
+    #[test]
+    fn test_build_item_id() {
+        // PSU型番あり
+        assert_eq!(
+            KoizumiProvider::build_item_id("AD12345", Some("DALI調光電源：XE92701")),
+            "AD12345+XE92701"
+        );
+
+        // PSU型番なし（説明のみ）
+        assert_eq!(
+            KoizumiProvider::build_item_id("AD12345", Some("DALI調光電源")),
+            "AD12345"
+        );
+
+        // PSU指定なし
+        assert_eq!(
+            KoizumiProvider::build_item_id("AD12345", None),
+            "AD12345"
+        );
+
+        // 空文字
+        assert_eq!(
+            KoizumiProvider::build_item_id("AD12345", Some("")),
+            "AD12345"
+        );
     }
 }
