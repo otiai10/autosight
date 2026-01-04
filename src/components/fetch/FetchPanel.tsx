@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Card, Button, Progress, Alert, TextInput } from 'flowbite-react';
-import { HiDownload, HiFolder, HiExclamation, HiCheck } from 'react-icons/hi';
+import { HiDownload, HiFolder, HiFolderOpen, HiExclamation, HiCheck } from 'react-icons/hi';
 import { open } from '@tauri-apps/plugin-dialog';
+import { revealItemInDir } from '@tauri-apps/plugin-opener';
 import { batchDownloadIesFiles } from '../../services/tauri/commands';
 import type { FixtureSelection, BatchDownloadResult } from '../../types/fixture';
 
@@ -32,6 +33,12 @@ export function FetchPanel({ selections, onProgressUpdate, onComplete }: FetchPa
 
     if (selected && typeof selected === 'string') {
       setDestDir(selected);
+    }
+  };
+
+  const handleOpenFolder = async () => {
+    if (destDir) {
+      await revealItemInDir(destDir);
     }
   };
 
@@ -164,14 +171,20 @@ export function FetchPanel({ selections, onProgressUpdate, onComplete }: FetchPa
       {/* 結果表示 */}
       {result && (
         <Card>
-          <div className="flex items-center gap-4 mb-4">
-            <HiCheck className="w-8 h-8 text-green-500" />
-            <div>
-              <h3 className="text-lg font-semibold">ダウンロード完了</h3>
-              <p className="text-gray-500">
-                成功: {result.successCount}件 / 失敗: {result.failureCount}件
-              </p>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-4">
+              <HiCheck className="w-8 h-8 text-green-500" />
+              <div>
+                <h3 className="text-lg font-semibold">ダウンロード完了</h3>
+                <p className="text-gray-500">
+                  成功: {result.successCount}件 / 失敗: {result.failureCount}件
+                </p>
+              </div>
             </div>
+            <Button color="gray" onClick={handleOpenFolder}>
+              <HiFolderOpen className="w-5 h-5 mr-2" />
+              保存先を開く
+            </Button>
           </div>
 
           {result.failureCount > 0 && (

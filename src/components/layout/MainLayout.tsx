@@ -1,10 +1,4 @@
-import {
-  HiDocumentAdd,
-  HiViewList,
-  HiDownload,
-  HiDocumentReport,
-  HiCog,
-} from 'react-icons/hi';
+import { HiDownload, HiCog } from 'react-icons/hi';
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -47,30 +41,9 @@ export function MainLayout({ children, currentPage, onNavigate }: MainLayoutProp
         </div>
         <nav className="flex-1 p-4 space-y-2">
           <NavItem
-            icon={HiDocumentAdd}
-            label="ファイル読込"
-            page="home"
-            currentPage={currentPage}
-            onClick={onNavigate}
-          />
-          <NavItem
-            icon={HiViewList}
-            label="器具一覧"
-            page="fixtures"
-            currentPage={currentPage}
-            onClick={onNavigate}
-          />
-          <NavItem
             icon={HiDownload}
-            label="データ取得"
-            page="fetch"
-            currentPage={currentPage}
-            onClick={onNavigate}
-          />
-          <NavItem
-            icon={HiDocumentReport}
-            label="出力"
-            page="output"
+            label="IES取得"
+            page="wizard"
             currentPage={currentPage}
             onClick={onNavigate}
           />
