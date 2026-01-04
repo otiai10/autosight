@@ -4,6 +4,7 @@
 //! プラグイン的に追加可能なアーキテクチャを提供する。
 
 pub mod koizumi;
+pub mod tokistar;
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -136,8 +137,8 @@ impl ProviderRegistry {
     /// 新しいレジストリを作成（デフォルトプロバイダーを登録）
     pub fn new() -> Self {
         let mut registry = Self { providers: vec![] };
-        // MVP: コイズミ照明のみ登録
         registry.register(Arc::new(koizumi::KoizumiProvider::new()));
+        registry.register(Arc::new(tokistar::TokistarProvider::new()));
         registry
     }
 
