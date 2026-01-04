@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Button, Spinner } from 'flowbite-react';
+import { Button, Spinner, Tooltip } from 'flowbite-react';
 import { HiSearch, HiCheck, HiX, HiExclamation } from 'react-icons/hi';
 import type { Fixture, FixtureSelection } from '../../types/fixture';
 
@@ -31,13 +31,12 @@ function StatusBadge({ status, error }: { status?: string; error?: string }) {
 
   if (status === 'error') {
     return (
-      <span
-        className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded bg-red-100 text-red-800 cursor-help"
-        title={error || 'エラー'}
-      >
-        <HiExclamation className="w-3.5 h-3.5" />
-        エラー
-      </span>
+      <Tooltip content={error || 'エラーが発生しました'} style="dark">
+        <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded bg-red-100 text-red-800 cursor-help">
+          <HiExclamation className="w-3.5 h-3.5" />
+          エラー
+        </span>
+      </Tooltip>
     );
   }
 
