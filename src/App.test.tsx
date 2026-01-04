@@ -17,6 +17,10 @@ vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn(),
 }));
 
+vi.mock('@tauri-apps/api/event', () => ({
+  listen: vi.fn(() => Promise.resolve(() => {})),
+}));
+
 import { open } from '@tauri-apps/plugin-dialog';
 import { readFile } from '@tauri-apps/plugin-fs';
 import { invoke } from '@tauri-apps/api/core';
@@ -169,8 +173,8 @@ describe('App', () => {
         expect(screen.getByRole('heading', { name: '設定' })).toBeInTheDocument();
       });
 
-      // ファイル読込（ホーム）に戻る
-      await user.click(screen.getByText('ファイル読込'));
+      // IES取得（ホーム）に戻る
+      await user.click(screen.getByText('IES取得'));
       await waitFor(() => {
         expect(screen.getByText(/Excelファイルをドラッグ/i)).toBeInTheDocument();
       });
