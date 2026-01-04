@@ -90,6 +90,13 @@ export interface BatchDownloadResult {
   results: SingleDownloadResult[];
 }
 
+/** ダウンロード進捗イベント（Rust側からの通知） */
+export interface DownloadProgressEvent {
+  specNo: string;
+  status: 'processing' | 'success' | 'error';
+  error?: string;
+}
+
 /** 製品情報（Rust側と対応） */
 export interface ProductInfo {
   modelNumber: string;
@@ -104,6 +111,6 @@ export interface ProductInfo {
 export interface FixtureSelection {
   fixture: Fixture;
   selected: boolean;
-  downloadStatus?: 'pending' | 'downloading' | 'success' | 'error';
+  downloadStatus?: 'pending' | 'waiting' | 'downloading' | 'success' | 'error';
   downloadError?: string;
 }

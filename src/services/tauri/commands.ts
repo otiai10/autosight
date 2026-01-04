@@ -4,9 +4,11 @@
  */
 
 import { invoke } from '@tauri-apps/api/core';
+import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import type {
   BatchDownloadRequest,
   BatchDownloadResult,
+  DownloadProgressEvent,
   DownloadResult,
   ProductInfo,
 } from '../../types/fixture';
@@ -68,5 +70,18 @@ export async function batchDownloadIesFiles(
       })),
       destDir: request.destDir,
     },
+  });
+}
+
+/**
+ * ダウンロード進捗イベントをリッスン
+ * @param callback 進捗イベント受信時のコールバック
+ * @returns リスナー解除関数
+ */
+export async function listenDownloadProgress(
+  callback: (event: DownloadProgressEvent) => void
+): Promise<UnlistenFn> {
+  return listen<DownloadProgressEvent>('download-progress', (event) => {
+    callback(event.payload);
   });
 }

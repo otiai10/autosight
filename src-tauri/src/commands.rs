@@ -5,8 +5,20 @@
 use crate::providers::{DownloadResult, ProductInfo, ProviderRegistry};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use tauri::State;
+use tauri::{AppHandle, Emitter, State};
 use tokio::sync::Mutex;
+
+/// ダウンロード進捗イベントのペイロード
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DownloadProgressEvent {
+    /// Spec No.（アイテム識別用）
+    pub spec_no: String,
+    /// ステータス: "processing" | "success" | "error"
+    pub status: String,
+    /// エラーメッセージ（エラー時のみ）
+    pub error: Option<String>,
+}
 
 /// 一括ダウンロードの進捗情報
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -113,6 +125,7 @@ pub async fn download_ies_file(
 /// IESファイルを一括ダウンロード
 #[tauri::command]
 pub async fn batch_download_ies_files(
+    app: AppHandle,
     registry: State<'_, Arc<Mutex<ProviderRegistry>>>,
     request: BatchDownloadRequest,
 ) -> Result<BatchDownloadResult, String> {
@@ -122,6 +135,15 @@ pub async fn batch_download_ies_files(
     let mut failure_count = 0;
 
     for item in &request.items {
+        // 処理開始イベントを発火
+        let _ = app.emit(
+            "download-progress",
+            DownloadProgressEvent {
+                spec_no: item.spec_no.clone(),
+                status: "processing".to_string(),
+                error: None,
+            },
+        );
         // 一時ファイル名でダウンロード（後で元ファイル名を使ってリネーム）
         let temp_path = format!(
             "{}/temp_{}.ies",
@@ -165,6 +187,20 @@ pub async fn batch_download_ies_files(
         } else {
             failure_count += 1;
         }
+
+        // 完了イベントを発火
+        let _ = app.emit(
+            "download-progress",
+            DownloadProgressEvent {
+                spec_no: item.spec_no.clone(),
+                status: if result.success {
+                    "success".to_string()
+                } else {
+                    "error".to_string()
+                },
+                error: result.error.clone(),
+            },
+        );
 
         results.push(SingleDownloadResult {
             spec_no: item.spec_no.clone(),

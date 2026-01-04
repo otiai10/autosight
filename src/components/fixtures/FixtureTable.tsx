@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { Button, Spinner, Tooltip } from 'flowbite-react';
-import { HiSearch, HiCheck, HiX, HiExclamation } from 'react-icons/hi';
+import { HiSearch, HiCheck, HiX, HiExclamation, HiClock } from 'react-icons/hi';
 import type { Fixture, FixtureSelection } from '../../types/fixture';
 
 interface FixtureTableProps {
@@ -11,6 +11,15 @@ interface FixtureTableProps {
 }
 
 function StatusBadge({ status, error }: { status?: string; error?: string }) {
+  if (status === 'waiting') {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded bg-gray-200 text-gray-600">
+        <HiClock className="w-3.5 h-3.5" />
+        待機中
+      </span>
+    );
+  }
+
   if (status === 'downloading') {
     return (
       <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded bg-blue-100 text-blue-800">

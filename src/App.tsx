@@ -9,7 +9,7 @@ import { FileDropZone } from './components/home/FileDropZone';
 import { FixtureTable } from './components/fixtures/FixtureTable';
 import { WizardContainer } from './components/wizard/WizardContainer';
 import { useWizardState } from './components/wizard/useWizardState';
-import { getSupportedManufacturers, batchDownloadIesFiles } from './services/tauri/commands';
+import { getSupportedManufacturers, batchDownloadIesFiles, listenDownloadProgress } from './services/tauri/commands';
 import { updateIesFileCheck } from './services/excel/parser';
 import type { Fixture, FixtureSelection, BatchDownloadResult } from './types/fixture';
 import type { ParseResult } from './services/excel/parser';
@@ -60,6 +60,35 @@ function App() {
     getSupportedManufacturers()
       .then(setSupportedManufacturers)
       .catch(console.error);
+  }, []);
+
+  // ダウンロード進捗イベントをリッスン
+  useEffect(() => {
+    let unlisten: (() => void) | null = null;
+
+    listenDownloadProgress((event) => {
+      setSelections((prev) =>
+        prev.map((s) => {
+          if (s.fixture.specNo !== event.specNo) return s;
+
+          // ステータスに応じて更新
+          if (event.status === 'processing') {
+            return { ...s, downloadStatus: 'downloading' };
+          } else if (event.status === 'success') {
+            return { ...s, downloadStatus: 'success', downloadError: undefined };
+          } else if (event.status === 'error') {
+            return { ...s, downloadStatus: 'error', downloadError: event.error };
+          }
+          return s;
+        })
+      );
+    }).then((fn) => {
+      unlisten = fn;
+    });
+
+    return () => {
+      if (unlisten) unlisten();
+    };
   }, []);
 
   // ウィザードリセット
@@ -138,11 +167,12 @@ function App() {
     setIsDownloading(true);
     setLastResult(null);
 
-    // 全アイテムをdownloading状態に
+    // 選択アイテムを「待機中」状態に（イベントで順次更新される）
     setSelections((prev) =>
       prev.map((s) => ({
         ...s,
-        downloadStatus: s.selected ? 'downloading' : s.downloadStatus,
+        downloadStatus: s.selected ? 'waiting' : s.downloadStatus,
+        downloadError: undefined,
       }))
     );
 
@@ -156,30 +186,18 @@ function App() {
         destDir,
       });
 
-      // 結果を反映
-      setSelections((prev) =>
-        prev.map((s) => {
-          const itemResult = result.results.find((r) => r.specNo === s.fixture.specNo);
-          if (itemResult) {
-            return {
-              ...s,
-              downloadStatus: itemResult.result.success ? 'success' : 'error',
-              downloadError: itemResult.result.error,
-            };
-          }
-          return s;
-        })
-      );
-
+      // 最終結果を保存（サマリー表示用）
       setLastResult(result);
     } catch (err) {
       console.error('Download error:', err);
-      // エラー時は全てerror状態に
+      // エラー時は待機中のアイテムをerror状態に
       setSelections((prev) =>
         prev.map((s) => ({
           ...s,
-          downloadStatus: s.selected ? 'error' : s.downloadStatus,
-          downloadError: err instanceof Error ? err.message : 'ダウンロードに失敗',
+          downloadStatus: s.downloadStatus === 'waiting' ? 'error' : s.downloadStatus,
+          downloadError: s.downloadStatus === 'waiting'
+            ? (err instanceof Error ? err.message : 'ダウンロードに失敗')
+            : s.downloadError,
         }))
       );
     } finally {
