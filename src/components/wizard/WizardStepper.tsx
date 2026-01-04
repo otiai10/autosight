@@ -32,7 +32,7 @@ export function WizardStepper({
         return (
           <li
             key={step.id}
-            className={`flex items-center ${isLast ? '' : 'w-full'}`}
+            className={`flex items-center ${isLast ? 'shrink-0' : 'flex-1'}`}
           >
             <button
               type="button"
@@ -81,7 +81,7 @@ export function WizardStepper({
             {/* 接続線 */}
             {!isLast && (
               <div
-                className={`flex-1 h-0.5 mx-4 ${
+                className={`flex-1 h-0.5 mx-4 min-w-8 ${
                   isCompleted
                     ? 'bg-blue-600'
                     : 'bg-gray-300 dark:bg-gray-600'
