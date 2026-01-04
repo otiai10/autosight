@@ -13,7 +13,7 @@ interface FixtureTableProps {
 function StatusBadge({ status, error }: { status?: string; error?: string }) {
   if (status === 'waiting') {
     return (
-      <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded bg-gray-200 text-gray-600">
+      <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded bg-gray-200 text-gray-600 whitespace-nowrap">
         <HiClock className="w-3.5 h-3.5" />
         待機中
       </span>
@@ -22,8 +22,8 @@ function StatusBadge({ status, error }: { status?: string; error?: string }) {
 
   if (status === 'downloading') {
     return (
-      <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded bg-blue-100 text-blue-800">
-        <Spinner size="xs" />
+      <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded bg-blue-100 text-blue-800 whitespace-nowrap">
+        <Spinner size="xs" className="animate-spin" />
         処理中
       </span>
     );
@@ -31,7 +31,7 @@ function StatusBadge({ status, error }: { status?: string; error?: string }) {
 
   if (status === 'success') {
     return (
-      <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded bg-green-100 text-green-800">
+      <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded bg-green-100 text-green-800 whitespace-nowrap">
         <HiCheck className="w-3.5 h-3.5" />
         完了
       </span>
@@ -41,7 +41,7 @@ function StatusBadge({ status, error }: { status?: string; error?: string }) {
   if (status === 'error') {
     return (
       <Tooltip content={error || 'エラーが発生しました'} style="dark">
-        <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded bg-red-100 text-red-800 cursor-help">
+        <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded bg-red-100 text-red-800 cursor-help whitespace-nowrap">
           <HiExclamation className="w-3.5 h-3.5" />
           エラー
         </span>
@@ -50,7 +50,7 @@ function StatusBadge({ status, error }: { status?: string; error?: string }) {
   }
 
   return (
-    <span className="px-2 py-1 text-xs font-medium rounded bg-gray-100 text-gray-500">
+    <span className="px-2 py-1 text-xs font-medium rounded bg-gray-100 text-gray-500 whitespace-nowrap">
       -
     </span>
   );
@@ -189,7 +189,7 @@ export function FixtureTable({
               <th className="px-4 py-3">色温度</th>
               <th className="px-4 py-3">配光角</th>
               <th className="w-20 px-4 py-3">対応</th>
-              <th className="w-24 px-4 py-3">状態</th>
+              <th className="w-28 px-4 py-3">状態</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
