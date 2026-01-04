@@ -14,7 +14,7 @@ import { updateIesFileCheck } from './services/excel/parser';
 import type { Fixture, FixtureSelection, BatchDownloadResult } from './types/fixture';
 import type { ParseResult } from './services/excel/parser';
 import type { StepConfig } from './components/wizard/WizardStepper';
-import type { WorkBook } from 'xlsx';
+import type { Workbook } from 'exceljs';
 
 type Page = 'wizard' | 'settings';
 
@@ -30,7 +30,7 @@ function App() {
   const [selections, setSelections] = useState<FixtureSelection[]>([]);
   const [fileName, setFileName] = useState<string>('');
   const [filePath, setFilePath] = useState<string>('');
-  const [workbook, setWorkbook] = useState<WorkBook | null>(null);
+  const [workbook, setWorkbook] = useState<Workbook | null>(null);
   const [fixtureBaseSheetName, setFixtureBaseSheetName] = useState<string>('');
   const [supportedManufacturers, setSupportedManufacturers] = useState<string[]>([]);
   const [warnings, setWarnings] = useState<string[]>([]);
@@ -221,7 +221,7 @@ function App() {
           filePath: r.result.filePath!,
         }));
 
-      const updatedData = updateIesFileCheck(workbook, fixtureBaseSheetName, updates);
+      const updatedData = await updateIesFileCheck(workbook, fixtureBaseSheetName, updates);
       await writeFile(filePath, updatedData);
 
       setSaveComplete(true);

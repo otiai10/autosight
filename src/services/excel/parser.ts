@@ -1,9 +1,10 @@
 /**
  * Excel解析サービス
  * IES照明器具リストExcelファイルをパースしてFixtureデータに変換する
+ * ExcelJS を使用してスタイル情報を完全に保持
  */
 
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import type { Fixture } from '../../types/fixture';
 
 /** Fixture Baseシートのカラムマッピング */
@@ -41,7 +42,7 @@ export interface ParseResult {
   fixtures: Fixture[];
   warnings: string[];
   sheetNames: string[];
-  workbook: XLSX.WorkBook;
+  workbook: ExcelJS.Workbook;
   fixtureBaseSheetName: string;
 }
 
@@ -52,50 +53,73 @@ export interface IesCheckUpdate {
 }
 
 /**
- * Excelのシリアル日付をJavaScript Dateに変換
+ * セルの値を取得するヘルパー関数
  */
-function excelDateToJSDate(serial: number): Date {
-  const utcDays = Math.floor(serial - 25569);
-  const utcValue = utcDays * 86400;
-  return new Date(utcValue * 1000);
+function getCellValue(cell: ExcelJS.Cell | undefined): unknown {
+  if (!cell) return null;
+  const value = cell.value;
+
+  // ExcelJS の CellValue 型を処理
+  if (value === null || value === undefined) return null;
+
+  // 数式の場合は結果を取得
+  if (typeof value === 'object' && 'result' in value) {
+    return value.result;
+  }
+
+  // リッチテキストの場合
+  if (typeof value === 'object' && 'richText' in value) {
+    return value.richText.map((rt) => rt.text).join('');
+  }
+
+  // 日付の場合はそのまま返す
+  if (value instanceof Date) {
+    return value;
+  }
+
+  return value;
 }
 
 /**
- * バイナリデータからExcelを解析
+ * バイナリデータからExcelを解析（非同期）
  */
-export function parseExcelFromBinary(data: Uint8Array): ParseResult {
-  // 新しいUint8Arrayにコピーして確実にオフセット0から始まるようにする
-  const cleanData = new Uint8Array(data);
-  const workbook = XLSX.read(cleanData, { type: 'array' });
+export async function parseExcelFromBinary(data: Uint8Array): Promise<ParseResult> {
+  const workbook = new ExcelJS.Workbook();
+
+  // Uint8Array から Buffer に変換して読み込み
+  await workbook.xlsx.load(data.buffer);
+
   const warnings: string[] = [];
 
   // Fixture Baseシートを探す
-  const fixtureBaseSheet = workbook.SheetNames.find(
+  const sheetNames = workbook.worksheets.map((ws) => ws.name);
+  const fixtureBaseSheetName = sheetNames.find(
     (name) => name === 'Fixture Base' || name.toLowerCase().includes('fixture')
   );
 
-  if (!fixtureBaseSheet) {
+  if (!fixtureBaseSheetName) {
     throw new Error('Fixture Base シートが見つかりません');
   }
 
-  const sheet = workbook.Sheets[fixtureBaseSheet];
-  const rawData = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
-    header: 1,
-    defval: null,
-  });
+  const sheet = workbook.getWorksheet(fixtureBaseSheetName);
+  if (!sheet) {
+    throw new Error('Fixture Base シートが見つかりません');
+  }
 
-  if (rawData.length < 3) {
+  // 行数チェック
+  if (sheet.rowCount < 3) {
     throw new Error('データが不足しています');
   }
 
   // ヘッダー行を取得（1行目）
-  const headers = rawData[0] as (string | null)[];
-
-  // カラムインデックスのマッピングを作成
+  const headerRow = sheet.getRow(1);
   const columnIndices: Record<string, number> = {};
-  headers.forEach((header, index) => {
-    if (header && typeof header === 'string') {
-      columnIndices[header.trim()] = index;
+
+  headerRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+    const value = getCellValue(cell);
+    const header = value ? String(value).trim() : null;
+    if (header) {
+      columnIndices[header] = colNumber;
     }
   });
 
@@ -109,26 +133,31 @@ export function parseExcelFromBinary(data: Uint8Array): ParseResult {
   // データ行を解析（3行目から、2行目はスキップ）
   const fixtures: Fixture[] = [];
 
-  for (let i = 2; i < rawData.length; i++) {
-    const row = rawData[i];
-    if (!row || !Array.isArray(row) || row.every((cell) => cell === null || cell === undefined || cell === '')) {
-      continue; // 空行をスキップ
-    }
+  sheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
+    if (rowNumber < 3) return; // 1-2行目はスキップ
 
     const fixture: Partial<Fixture> = {};
+    let hasData = false;
 
     for (const [excelCol, fixtureKey] of Object.entries(COLUMN_MAPPING)) {
       const colIndex = columnIndices[excelCol];
       if (colIndex === undefined) continue;
 
-      const value = row[colIndex];
+      const cell = row.getCell(colIndex);
+      const value = getCellValue(cell);
       if (value === null || value === undefined || value === '') continue;
+
+      hasData = true;
 
       // 型に応じた変換
       switch (fixtureKey) {
         case 'date':
-          if (typeof value === 'number') {
-            fixture[fixtureKey] = excelDateToJSDate(value);
+          if (value instanceof Date) {
+            fixture[fixtureKey] = value;
+          } else if (typeof value === 'number') {
+            // Excel serial date
+            const date = new Date((value - 25569) * 86400 * 1000);
+            fixture[fixtureKey] = date;
           }
           break;
         case 'omitted':
@@ -146,41 +175,51 @@ export function parseExcelFromBinary(data: Uint8Array): ParseResult {
     }
 
     // 必須フィールドのチェック
-    if (fixture.specNo && fixture.manufacturer && fixture.fixture) {
+    if (hasData && fixture.specNo && fixture.manufacturer && fixture.fixture) {
       if (!fixture.luminaireType) {
         fixture.luminaireType = '不明';
       }
       fixtures.push(fixture as Fixture);
     }
-  }
+  });
 
   return {
     fixtures,
     warnings,
-    sheetNames: workbook.SheetNames,
+    sheetNames,
     workbook,
-    fixtureBaseSheetName: fixtureBaseSheet,
+    fixtureBaseSheetName,
   };
 }
 
 /**
- * IES File CheckカラムをExcelに書き込む
+ * IES File CheckカラムをExcelに書き込む（非同期）
+ * スタイル情報は完全に保持される
  */
-export function updateIesFileCheck(
-  workbook: XLSX.WorkBook,
+export async function updateIesFileCheck(
+  workbook: ExcelJS.Workbook,
   sheetName: string,
   updates: IesCheckUpdate[]
-): Uint8Array {
-  const sheet = workbook.Sheets[sheetName];
-  const rawData = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
-    header: 1,
-    defval: null,
-  });
+): Promise<Uint8Array> {
+  const sheet = workbook.getWorksheet(sheetName);
+  if (!sheet) {
+    throw new Error(`シート "${sheetName}" が見つかりません`);
+  }
 
   // ヘッダー行からカラムインデックスを取得
-  const headers = rawData[0] as (string | null)[];
-  const specNoColIndex = headers.findIndex((h) => h === 'Spec No.');
-  const iesCheckColIndex = headers.findIndex((h) => h === 'IES File Check');
+  const headerRow = sheet.getRow(1);
+  let specNoColIndex = -1;
+  let iesCheckColIndex = -1;
+
+  headerRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+    const value = getCellValue(cell);
+    const header = value ? String(value).trim() : null;
+    if (header === 'Spec No.') {
+      specNoColIndex = colNumber;
+    } else if (header === 'IES File Check') {
+      iesCheckColIndex = colNumber;
+    }
+  });
 
   if (specNoColIndex === -1) {
     throw new Error('Spec No. カラムが見つかりません');
@@ -196,22 +235,21 @@ export function updateIesFileCheck(
     updateMap.set(update.specNo, update.filePath);
   }
 
-  // データ行を更新（3行目から）
-  for (let i = 2; i < rawData.length; i++) {
-    const row = rawData[i] as unknown[];
-    if (!row) continue;
+  // データ行を更新（3行目から）- セルの値のみ更新、スタイルは自動的に保持
+  sheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
+    if (rowNumber < 3) return; // 1-2行目はスキップ
 
-    const specNo = row[specNoColIndex];
+    const specNoCell = row.getCell(specNoColIndex);
+    const specNo = getCellValue(specNoCell);
+
     if (typeof specNo === 'string' && updateMap.has(specNo)) {
-      row[iesCheckColIndex] = updateMap.get(specNo);
+      const iesCheckCell = row.getCell(iesCheckColIndex);
+      // 値のみ更新（スタイルは ExcelJS が自動的に保持）
+      iesCheckCell.value = updateMap.get(specNo)!;
     }
-  }
+  });
 
-  // シートを再構築
-  const newSheet = XLSX.utils.aoa_to_sheet(rawData as unknown[][]);
-  workbook.Sheets[sheetName] = newSheet;
-
-  // バイナリに変換
-  const wbout = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
-  return new Uint8Array(wbout);
+  // バイナリに変換（スタイル・テーマ情報は完全に保持）
+  const buffer = await workbook.xlsx.writeBuffer();
+  return new Uint8Array(buffer);
 }

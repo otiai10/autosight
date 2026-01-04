@@ -1,18 +1,18 @@
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 
 /**
- * テスト用のExcelデータを生成
+ * テスト用のExcelデータを非同期で生成
  */
-export function createMockExcelData(fixtures: Array<{
+export async function createMockExcelData(fixtures: Array<{
   specNo: string;
   manufacturer: string;
   fixture: string;
   luminaireType?: string;
   colorTemp?: string;
   wattage?: number;
-}>): Uint8Array {
-  // ワークブック作成
-  const workbook = XLSX.utils.book_new();
+}>): Promise<Uint8Array> {
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet('Fixture Base');
 
   // ヘッダー行
   const headers = [
@@ -42,12 +42,13 @@ export function createMockExcelData(fixtures: Array<{
     'Cost of Others',
   ];
 
-  // データ構築（1行目: ヘッダー, 2行目: 空行, 3行目以降: データ）
-  const data: (string | number | null)[][] = [
-    headers,
-    headers.map(() => null), // 2行目は空行（スキップ対象）
-  ];
+  // 1行目: ヘッダー
+  sheet.addRow(headers);
 
+  // 2行目: 空行（スキップ対象）
+  sheet.addRow(headers.map(() => null));
+
+  // 3行目以降: データ
   for (const f of fixtures) {
     const row: (string | number | null)[] = headers.map(() => null);
     row[0] = f.specNo;
@@ -56,22 +57,18 @@ export function createMockExcelData(fixtures: Array<{
     row[9] = f.wattage ?? 10;
     row[12] = f.manufacturer;
     row[13] = f.fixture;
-    data.push(row);
+    sheet.addRow(row);
   }
 
-  // シート作成
-  const sheet = XLSX.utils.aoa_to_sheet(data);
-  XLSX.utils.book_append_sheet(workbook, sheet, 'Fixture Base');
-
   // バイナリデータとして出力
-  const buffer = XLSX.write(workbook, { type: 'array', bookType: 'xlsx' });
+  const buffer = await workbook.xlsx.writeBuffer();
   return new Uint8Array(buffer);
 }
 
 /**
  * コイズミ照明の器具を含むテストデータ
  */
-export function createKoizumiTestData(): Uint8Array {
+export async function createKoizumiTestData(): Promise<Uint8Array> {
   return createMockExcelData([
     {
       specNo: 'A01',

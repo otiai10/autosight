@@ -4,8 +4,8 @@ import { createMockExcelData, createKoizumiTestData } from '../../test/mocks/exc
 
 describe('Excel Parser', () => {
   describe('parseExcelFromBinary', () => {
-    it('Fixture Baseシートから器具データを正しく解析する', () => {
-      const excelData = createMockExcelData([
+    it('Fixture Baseシートから器具データを正しく解析する', async () => {
+      const excelData = await createMockExcelData([
         {
           specNo: 'A01',
           manufacturer: 'コイズミ照明',
@@ -16,7 +16,7 @@ describe('Excel Parser', () => {
         },
       ]);
 
-      const result = parseExcelFromBinary(excelData);
+      const result = await parseExcelFromBinary(excelData);
 
       expect(result.fixtures).toHaveLength(1);
       expect(result.fixtures[0]).toMatchObject({
@@ -29,44 +29,44 @@ describe('Excel Parser', () => {
       });
     });
 
-    it('複数の器具データを解析できる', () => {
-      const excelData = createKoizumiTestData();
+    it('複数の器具データを解析できる', async () => {
+      const excelData = await createKoizumiTestData();
 
-      const result = parseExcelFromBinary(excelData);
+      const result = await parseExcelFromBinary(excelData);
 
       expect(result.fixtures).toHaveLength(3);
       expect(result.fixtures.map((f) => f.specNo)).toEqual(['A01', 'A02', 'B01']);
     });
 
-    it('シート名一覧を返す', () => {
-      const excelData = createMockExcelData([
+    it('シート名一覧を返す', async () => {
+      const excelData = await createMockExcelData([
         { specNo: 'A01', manufacturer: 'Test', fixture: 'TEST-001' },
       ]);
 
-      const result = parseExcelFromBinary(excelData);
+      const result = await parseExcelFromBinary(excelData);
 
       expect(result.sheetNames).toContain('Fixture Base');
     });
 
-    it('必須フィールドが欠けている行はスキップする', () => {
-      const excelData = createMockExcelData([
+    it('必須フィールドが欠けている行はスキップする', async () => {
+      const excelData = await createMockExcelData([
         { specNo: 'A01', manufacturer: 'コイズミ照明', fixture: 'AD12345' },
         { specNo: '', manufacturer: 'コイズミ照明', fixture: 'AD67890' }, // specNo欠損
         { specNo: 'A03', manufacturer: '', fixture: 'AD11111' }, // manufacturer欠損
         { specNo: 'A04', manufacturer: 'コイズミ照明', fixture: '' }, // fixture欠損
       ]);
 
-      const result = parseExcelFromBinary(excelData);
+      const result = await parseExcelFromBinary(excelData);
 
       // 必須フィールドが揃っている行のみ
       expect(result.fixtures).toHaveLength(1);
       expect(result.fixtures[0].specNo).toBe('A01');
     });
 
-    it('メーカー名でフィルタリングできる形式で返す', () => {
-      const excelData = createKoizumiTestData();
+    it('メーカー名でフィルタリングできる形式で返す', async () => {
+      const excelData = await createKoizumiTestData();
 
-      const result = parseExcelFromBinary(excelData);
+      const result = await parseExcelFromBinary(excelData);
 
       const koizumiFixtures = result.fixtures.filter(
         (f) => f.manufacturer === 'コイズミ照明'

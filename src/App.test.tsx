@@ -37,7 +37,7 @@ describe('App', () => {
   describe('Excelファイル読み込み → 器具一覧画面遷移', () => {
     it('Excelファイルを選択すると、器具一覧画面に遷移しテーブルが表示される', async () => {
       const user = userEvent.setup();
-      const mockExcelData = createKoizumiTestData();
+      const mockExcelData = await createKoizumiTestData();
 
       // ファイル選択ダイアログのモック
       vi.mocked(open).mockResolvedValue('/path/to/fixtures.xlsx');
@@ -97,7 +97,7 @@ describe('App', () => {
 
     it('対応メーカーの器具は自動的に選択される', async () => {
       const user = userEvent.setup();
-      const mockExcelData = createKoizumiTestData();
+      const mockExcelData = await createKoizumiTestData();
 
       vi.mocked(open).mockResolvedValue('/path/to/fixtures.xlsx');
       vi.mocked(readFile).mockResolvedValue(mockExcelData);
@@ -142,7 +142,7 @@ describe('App', () => {
 
     it('ファイル名が画面に表示される', async () => {
       const user = userEvent.setup();
-      const mockExcelData = createKoizumiTestData();
+      const mockExcelData = await createKoizumiTestData();
 
       vi.mocked(open).mockResolvedValue('/path/to/test-fixtures.xlsx');
       vi.mocked(readFile).mockResolvedValue(mockExcelData);

@@ -21,7 +21,7 @@ export function FileDropZone({ onFileLoaded }: FileDropZoneProps) {
 
       try {
         const data = await readFile(filePath);
-        const result = parseExcelFromBinary(data);
+        const result = await parseExcelFromBinary(data);
         const fileName = filePath.split('/').pop() || filePath;
         onFileLoaded(result, fileName, filePath);
       } catch (err) {
