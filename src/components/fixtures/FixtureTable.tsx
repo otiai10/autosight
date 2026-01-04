@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
-import { Button } from 'flowbite-react';
-import { HiSearch, HiCheck, HiX } from 'react-icons/hi';
+import { Button, Spinner } from 'flowbite-react';
+import { HiSearch, HiCheck, HiX, HiExclamation } from 'react-icons/hi';
 import type { Fixture, FixtureSelection } from '../../types/fixture';
 
 interface FixtureTableProps {
@@ -10,25 +10,40 @@ interface FixtureTableProps {
   supportedManufacturers: string[];
 }
 
-function StatusBadge({ status }: { status?: string }) {
-  const styles: Record<string, string> = {
-    success: 'bg-green-100 text-green-800',
-    downloading: 'bg-blue-100 text-blue-800',
-    error: 'bg-red-100 text-red-800',
-    default: 'bg-gray-100 text-gray-800',
-  };
-  const labels: Record<string, string> = {
-    success: '完了',
-    downloading: '処理中',
-    error: 'エラー',
-    default: '未処理',
-  };
-  const style = styles[status || 'default'] || styles.default;
-  const label = labels[status || 'default'] || labels.default;
+function StatusBadge({ status, error }: { status?: string; error?: string }) {
+  if (status === 'downloading') {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded bg-blue-100 text-blue-800">
+        <Spinner size="xs" />
+        処理中
+      </span>
+    );
+  }
+
+  if (status === 'success') {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded bg-green-100 text-green-800">
+        <HiCheck className="w-3.5 h-3.5" />
+        完了
+      </span>
+    );
+  }
+
+  if (status === 'error') {
+    return (
+      <span
+        className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded bg-red-100 text-red-800 cursor-help"
+        title={error || 'エラー'}
+      >
+        <HiExclamation className="w-3.5 h-3.5" />
+        エラー
+      </span>
+    );
+  }
 
   return (
-    <span className={`px-2 py-1 text-xs font-medium rounded ${style}`}>
-      {label}
+    <span className="px-2 py-1 text-xs font-medium rounded bg-gray-100 text-gray-500">
+      -
     </span>
   );
 }
@@ -206,7 +221,7 @@ export function FixtureTable({
                     )}
                   </td>
                   <td className="px-4 py-3">
-                    <StatusBadge status={selection?.downloadStatus} />
+                    <StatusBadge status={selection?.downloadStatus} error={selection?.downloadError} />
                   </td>
                 </tr>
               );

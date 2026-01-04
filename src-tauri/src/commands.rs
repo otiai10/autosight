@@ -10,6 +10,7 @@ use tokio::sync::Mutex;
 
 /// 一括ダウンロードの進捗情報
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct BatchProgress {
     /// 現在処理中のインデックス
     pub current: usize,
@@ -25,6 +26,7 @@ pub struct BatchProgress {
 
 /// 一括ダウンロードのリクエスト
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct BatchDownloadRequest {
     /// ダウンロード対象のリスト（メーカー名、型番のペア）
     pub items: Vec<BatchDownloadItem>,
@@ -33,6 +35,7 @@ pub struct BatchDownloadRequest {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct BatchDownloadItem {
     /// Spec No.（ファイル名に使用）
     pub spec_no: String,
@@ -46,6 +49,7 @@ pub struct BatchDownloadItem {
 
 /// 一括ダウンロードの結果
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct BatchDownloadResult {
     /// 成功件数
     pub success_count: usize,
@@ -56,6 +60,7 @@ pub struct BatchDownloadResult {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SingleDownloadResult {
     pub spec_no: String,
     pub model_number: String,

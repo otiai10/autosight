@@ -6,7 +6,7 @@ import { readFile } from '@tauri-apps/plugin-fs';
 import { parseExcelFromBinary, type ParseResult } from '../../services/excel/parser';
 
 interface FileDropZoneProps {
-  onFileLoaded: (result: ParseResult, fileName: string) => void;
+  onFileLoaded: (result: ParseResult, fileName: string, filePath: string) => void;
 }
 
 export function FileDropZone({ onFileLoaded }: FileDropZoneProps) {
@@ -23,7 +23,7 @@ export function FileDropZone({ onFileLoaded }: FileDropZoneProps) {
         const data = await readFile(filePath);
         const result = parseExcelFromBinary(data);
         const fileName = filePath.split('/').pop() || filePath;
-        onFileLoaded(result, fileName);
+        onFileLoaded(result, fileName, filePath);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'ファイルの読み込みに失敗しました');
       } finally {

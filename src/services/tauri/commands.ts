@@ -62,11 +62,11 @@ export async function batchDownloadIesFiles(
   return invoke<BatchDownloadResult>('batch_download_ies_files', {
     request: {
       items: request.items.map((item) => ({
-        spec_no: item.specNo,
+        specNo: item.specNo,
         manufacturer: item.manufacturer,
-        model_number: item.modelNumber,
+        modelNumber: item.modelNumber,
       })),
-      dest_dir: request.destDir,
+      destDir: request.destDir,
     },
   });
 }

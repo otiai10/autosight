@@ -11,6 +11,7 @@ use std::sync::Arc;
 
 /// 製品情報
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ProductInfo {
     /// 型番
     pub model_number: String,
@@ -28,6 +29,7 @@ pub struct ProductInfo {
 
 /// ダウンロード結果
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct DownloadResult {
     /// 成功したかどうか
     pub success: bool,

@@ -41,6 +41,14 @@ export interface ParseResult {
   fixtures: Fixture[];
   warnings: string[];
   sheetNames: string[];
+  workbook: XLSX.WorkBook;
+  fixtureBaseSheetName: string;
+}
+
+/** IES File Check 更新用のデータ */
+export interface IesCheckUpdate {
+  specNo: string;
+  filePath: string;
 }
 
 /**
@@ -150,5 +158,60 @@ export function parseExcelFromBinary(data: Uint8Array): ParseResult {
     fixtures,
     warnings,
     sheetNames: workbook.SheetNames,
+    workbook,
+    fixtureBaseSheetName: fixtureBaseSheet,
   };
+}
+
+/**
+ * IES File CheckカラムをExcelに書き込む
+ */
+export function updateIesFileCheck(
+  workbook: XLSX.WorkBook,
+  sheetName: string,
+  updates: IesCheckUpdate[]
+): Uint8Array {
+  const sheet = workbook.Sheets[sheetName];
+  const rawData = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
+    header: 1,
+    defval: null,
+  });
+
+  // ヘッダー行からカラムインデックスを取得
+  const headers = rawData[0] as (string | null)[];
+  const specNoColIndex = headers.findIndex((h) => h === 'Spec No.');
+  const iesCheckColIndex = headers.findIndex((h) => h === 'IES File Check');
+
+  if (specNoColIndex === -1) {
+    throw new Error('Spec No. カラムが見つかりません');
+  }
+
+  if (iesCheckColIndex === -1) {
+    throw new Error('IES File Check カラムが見つかりません');
+  }
+
+  // 更新をマップに変換
+  const updateMap = new Map<string, string>();
+  for (const update of updates) {
+    updateMap.set(update.specNo, update.filePath);
+  }
+
+  // データ行を更新（3行目から）
+  for (let i = 2; i < rawData.length; i++) {
+    const row = rawData[i] as unknown[];
+    if (!row) continue;
+
+    const specNo = row[specNoColIndex];
+    if (typeof specNo === 'string' && updateMap.has(specNo)) {
+      row[iesCheckColIndex] = updateMap.get(specNo);
+    }
+  }
+
+  // シートを再構築
+  const newSheet = XLSX.utils.aoa_to_sheet(rawData as unknown[][]);
+  workbook.Sheets[sheetName] = newSheet;
+
+  // バイナリに変換
+  const wbout = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+  return new Uint8Array(wbout);
 }

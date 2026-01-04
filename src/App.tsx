@@ -1,23 +1,27 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Alert, Button } from 'flowbite-react';
-import { HiArrowRight } from 'react-icons/hi';
+import { Alert, Button, Card, Spinner, TextInput } from 'flowbite-react';
+import { HiArrowRight, HiCheck, HiFolder, HiFolderOpen, HiDownload, HiDocumentDownload } from 'react-icons/hi';
+import { open } from '@tauri-apps/plugin-dialog';
+import { writeFile } from '@tauri-apps/plugin-fs';
+import { revealItemInDir } from '@tauri-apps/plugin-opener';
 import { MainLayout } from './components/layout/MainLayout';
 import { FileDropZone } from './components/home/FileDropZone';
 import { FixtureTable } from './components/fixtures/FixtureTable';
-import { FetchPanel } from './components/fetch/FetchPanel';
 import { WizardContainer } from './components/wizard/WizardContainer';
 import { useWizardState } from './components/wizard/useWizardState';
-import { getSupportedManufacturers } from './services/tauri/commands';
+import { getSupportedManufacturers, batchDownloadIesFiles } from './services/tauri/commands';
+import { updateIesFileCheck } from './services/excel/parser';
 import type { Fixture, FixtureSelection, BatchDownloadResult } from './types/fixture';
 import type { ParseResult } from './services/excel/parser';
 import type { StepConfig } from './components/wizard/WizardStepper';
+import type { WorkBook } from 'xlsx';
 
 type Page = 'wizard' | 'settings';
 
 const WIZARD_STEPS: StepConfig[] = [
-  { id: 'file', label: 'ファイル読込', description: 'Excelファイルを選択' },
-  { id: 'fixtures', label: '器具一覧', description: '取得対象を選択' },
-  { id: 'fetch', label: 'データ取得', description: 'IESファイルDL' },
+  { id: 'file', label: 'ファイル読込', description: 'Excelを選択' },
+  { id: 'process', label: '処理', description: '選択・DL・保存' },
+  { id: 'complete', label: '完了', description: '結果確認' },
 ];
 
 function App() {
@@ -25,9 +29,21 @@ function App() {
   const [fixtures, setFixtures] = useState<Fixture[]>([]);
   const [selections, setSelections] = useState<FixtureSelection[]>([]);
   const [fileName, setFileName] = useState<string>('');
+  const [filePath, setFilePath] = useState<string>('');
+  const [workbook, setWorkbook] = useState<WorkBook | null>(null);
+  const [fixtureBaseSheetName, setFixtureBaseSheetName] = useState<string>('');
   const [supportedManufacturers, setSupportedManufacturers] = useState<string[]>([]);
   const [warnings, setWarnings] = useState<string[]>([]);
+
+  // ダウンロード関連
+  const [destDir, setDestDir] = useState<string>('');
+  const [isDownloading, setIsDownloading] = useState(false);
   const [lastResult, setLastResult] = useState<BatchDownloadResult | null>(null);
+
+  // Excel保存関連
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveComplete, setSaveComplete] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   // ウィザード状態管理
   const {
@@ -35,7 +51,7 @@ function App() {
     completedSteps,
     goToStep,
     nextStep,
-    resetWizard,
+    resetWizard: resetWizardState,
     canNavigateToStep,
   } = useWizardState(WIZARD_STEPS.length);
 
@@ -46,11 +62,37 @@ function App() {
       .catch(console.error);
   }, []);
 
+  // ウィザードリセット
+  const resetWizard = useCallback(() => {
+    resetWizardState();
+    setFixtures([]);
+    setSelections([]);
+    setFileName('');
+    setFilePath('');
+    setWorkbook(null);
+    setFixtureBaseSheetName('');
+    setWarnings([]);
+    setDestDir('');
+    setLastResult(null);
+    setSaveComplete(false);
+    setSaveError(null);
+  }, [resetWizardState]);
+
   // ファイル読み込み完了時
-  const handleFileLoaded = useCallback((result: ParseResult, name: string) => {
+  const handleFileLoaded = useCallback((result: ParseResult, name: string, path: string) => {
     setFixtures(result.fixtures);
     setFileName(name);
+    setFilePath(path);
+    setWorkbook(result.workbook);
+    setFixtureBaseSheetName(result.fixtureBaseSheetName);
     setWarnings(result.warnings);
+    setLastResult(null);
+    setSaveComplete(false);
+    setSaveError(null);
+
+    // 保存先を元ファイルと同じフォルダに設定
+    const dir = path.substring(0, path.lastIndexOf('/'));
+    setDestDir(dir);
 
     // 選択状態を初期化（対応メーカーのみ選択）
     setSelections(
@@ -61,7 +103,6 @@ function App() {
       }))
     );
 
-    // 次のステップへ自動遷移
     nextStep();
   }, [supportedManufacturers, nextStep]);
 
@@ -70,27 +111,115 @@ function App() {
     setSelections(newSelections);
   }, []);
 
-  // ダウンロード進捗の更新
-  const handleProgressUpdate = useCallback(
-    (specNo: string, status: 'downloading' | 'success' | 'error', error?: string) => {
-      setSelections((prev) =>
-        prev.map((s) =>
-          s.fixture.specNo === specNo
-            ? { ...s, downloadStatus: status, downloadError: error }
-            : s
-        )
-      );
-    },
-    []
-  );
+  // フォルダ選択
+  const handleSelectFolder = async () => {
+    const selected = await open({
+      directory: true,
+      multiple: false,
+      defaultPath: destDir || undefined,
+    });
+    if (selected && typeof selected === 'string') {
+      setDestDir(selected);
+    }
+  };
 
-  // ダウンロード完了
-  const handleComplete = useCallback((result: BatchDownloadResult) => {
-    setLastResult(result);
-  }, []);
+  // フォルダを開く
+  const handleOpenFolder = async () => {
+    if (destDir) {
+      await revealItemInDir(destDir);
+    }
+  };
+
+  // ダウンロード実行
+  const handleDownload = useCallback(async () => {
+    const selectedItems = selections.filter((s) => s.selected);
+    if (!destDir || selectedItems.length === 0) return;
+
+    setIsDownloading(true);
+    setLastResult(null);
+
+    // 全アイテムをdownloading状態に
+    setSelections((prev) =>
+      prev.map((s) => ({
+        ...s,
+        downloadStatus: s.selected ? 'downloading' : s.downloadStatus,
+      }))
+    );
+
+    try {
+      console.log('Starting download...', { destDir, itemCount: selectedItems.length });
+      const result = await batchDownloadIesFiles({
+        items: selectedItems.map((item) => ({
+          specNo: item.fixture.specNo,
+          manufacturer: item.fixture.manufacturer,
+          modelNumber: item.fixture.fixture,
+        })),
+        destDir,
+      });
+      console.log('Download result:', result);
+
+      // 結果を反映
+      setSelections((prev) =>
+        prev.map((s) => {
+          const itemResult = result.results.find((r) => r.specNo === s.fixture.specNo);
+          if (itemResult) {
+            return {
+              ...s,
+              downloadStatus: itemResult.result.success ? 'success' : 'error',
+              downloadError: itemResult.result.error,
+            };
+          }
+          return s;
+        })
+      );
+
+      setLastResult(result);
+    } catch (err) {
+      console.error('Download error:', err);
+      // エラー時は全てerror状態に
+      setSelections((prev) =>
+        prev.map((s) => ({
+          ...s,
+          downloadStatus: s.selected ? 'error' : s.downloadStatus,
+          downloadError: err instanceof Error ? err.message : 'ダウンロードに失敗',
+        }))
+      );
+    } finally {
+      setIsDownloading(false);
+    }
+  }, [selections, destDir]);
+
+  // Excel保存処理
+  const handleSaveToExcel = useCallback(async () => {
+    if (!workbook || !filePath || !lastResult) return;
+
+    setIsSaving(true);
+    setSaveError(null);
+
+    try {
+      const updates = lastResult.results
+        .filter((r) => r.result.success && r.result.filePath)
+        .map((r) => ({
+          specNo: r.specNo,
+          filePath: r.result.filePath!,
+        }));
+
+      const updatedData = updateIesFileCheck(workbook, fixtureBaseSheetName, updates);
+      await writeFile(filePath, updatedData);
+
+      setSaveComplete(true);
+      nextStep(); // 完了画面へ
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'ファイルの保存に失敗しました');
+    } finally {
+      setIsSaving(false);
+    }
+  }, [workbook, filePath, fixtureBaseSheetName, lastResult, nextStep]);
 
   // 選択されている器具の数
   const selectedCount = selections.filter((s) => s.selected).length;
+  const canDownload = selectedCount > 0 && destDir && !isDownloading;
+  const canSave = lastResult && lastResult.successCount > 0 && !isSaving && !saveComplete;
 
   // ページに応じたコンテンツをレンダリング
   const renderContent = () => {
@@ -107,8 +236,9 @@ function App() {
             {/* Step 0: ファイル読込 */}
             <FileDropZone onFileLoaded={handleFileLoaded} />
 
-            {/* Step 1: 器具一覧 */}
+            {/* Step 1: 処理（一覧+DL+保存） */}
             <div className="space-y-4">
+              {/* ヘッダー */}
               <div className="flex items-center justify-between">
                 <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
                   器具一覧
@@ -126,41 +256,152 @@ function App() {
                 </Alert>
               )}
 
+              {/* アクションバー */}
+              <Card>
+                <div className="flex flex-wrap items-center gap-4">
+                  {/* 保存先フォルダ */}
+                  <div className="flex items-center gap-2 flex-1 min-w-[300px]">
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">
+                      保存先:
+                    </span>
+                    <TextInput
+                      value={destDir}
+                      onChange={(e) => setDestDir(e.target.value)}
+                      placeholder="保存先フォルダを選択..."
+                      className="flex-1"
+                      readOnly
+                    />
+                    <Button color="gray" size="sm" onClick={handleSelectFolder}>
+                      <HiFolder className="w-4 h-4" />
+                    </Button>
+                    {destDir && (
+                      <Button color="gray" size="sm" onClick={handleOpenFolder}>
+                        <HiFolderOpen className="w-4 h-4" />
+                      </Button>
+                    )}
+                  </div>
+
+                  {/* ダウンロードボタン */}
+                  <Button
+                    color="blue"
+                    disabled={!canDownload}
+                    onClick={handleDownload}
+                  >
+                    {isDownloading ? (
+                      <>
+                        <Spinner size="sm" className="mr-2" />
+                        ダウンロード中...
+                      </>
+                    ) : (
+                      <>
+                        <HiDownload className="w-5 h-5 mr-2" />
+                        IESダウンロード ({selectedCount}件)
+                      </>
+                    )}
+                  </Button>
+
+                  {/* Excel保存ボタン */}
+                  {lastResult && (
+                    <Button
+                      color={saveComplete ? 'success' : 'green'}
+                      disabled={!canSave}
+                      onClick={handleSaveToExcel}
+                    >
+                      {isSaving ? (
+                        <>
+                          <Spinner size="sm" className="mr-2" />
+                          保存中...
+                        </>
+                      ) : saveComplete ? (
+                        <>
+                          <HiCheck className="w-5 h-5 mr-2" />
+                          保存完了
+                        </>
+                      ) : (
+                        <>
+                          <HiDocumentDownload className="w-5 h-5 mr-2" />
+                          Excelに上書き保存
+                        </>
+                      )}
+                    </Button>
+                  )}
+                </div>
+
+                {/* 結果サマリー */}
+                {lastResult && (
+                  <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                    <div className="flex items-center gap-4 text-sm">
+                      <span className="text-green-600 font-medium">
+                        成功: {lastResult.successCount}件
+                      </span>
+                      {lastResult.failureCount > 0 && (
+                        <span className="text-red-600 font-medium">
+                          失敗: {lastResult.failureCount}件
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {saveError && (
+                  <Alert color="failure" className="mt-4">
+                    {saveError}
+                  </Alert>
+                )}
+              </Card>
+
+              {/* テーブル */}
               <FixtureTable
                 fixtures={fixtures}
                 selections={selections}
                 onSelectionChange={handleSelectionChange}
                 supportedManufacturers={supportedManufacturers}
               />
-
-              <div className="flex justify-end mt-6">
-                <Button onClick={nextStep} disabled={selectedCount === 0}>
-                  データ取得へ進む
-                  <HiArrowRight className="ml-2 h-5 w-5" />
-                </Button>
-              </div>
             </div>
 
-            {/* Step 2: データ取得 */}
-            <div className="space-y-4">
-              <FetchPanel
-                selections={selections}
-                onProgressUpdate={handleProgressUpdate}
-                onComplete={handleComplete}
-              />
-
-              {lastResult && (
-                <div className="mt-6 p-4 bg-white dark:bg-gray-800 rounded-lg shadow">
-                  <h3 className="text-lg font-semibold mb-2">処理結果</h3>
-                  <p>成功: {lastResult.successCount}件</p>
-                  <p>失敗: {lastResult.failureCount}件</p>
+            {/* Step 2: 完了 */}
+            <div className="space-y-6">
+              <div className="text-center py-10">
+                <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-green-100 mb-6">
+                  <HiCheck className="w-10 h-10 text-green-600" />
                 </div>
-              )}
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
+                  処理が完了しました
+                </h2>
 
-              <div className="flex justify-start mt-6">
-                <Button color="light" onClick={resetWizard}>
-                  新しいファイルを読み込む
-                </Button>
+                <Card className="max-w-md mx-auto text-left">
+                  <div className="space-y-3">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">読込ファイル:</span>
+                      <span className="font-medium">{fileName}</span>
+                    </div>
+                    {lastResult && (
+                      <>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">ダウンロード成功:</span>
+                          <span className="font-medium text-green-600">{lastResult.successCount}件</span>
+                        </div>
+                        {lastResult.failureCount > 0 && (
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">ダウンロード失敗:</span>
+                            <span className="font-medium text-red-600">{lastResult.failureCount}件</span>
+                          </div>
+                        )}
+                      </>
+                    )}
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Excel保存:</span>
+                      <span className="font-medium text-green-600">完了</span>
+                    </div>
+                  </div>
+                </Card>
+
+                <div className="mt-8">
+                  <Button onClick={resetWizard}>
+                    新しいファイルを読み込む
+                    <HiArrowRight className="ml-2 h-5 w-5" />
+                  </Button>
+                </div>
               </div>
             </div>
           </WizardContainer>
