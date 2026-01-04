@@ -1,4 +1,4 @@
-import { HiDownload, HiCog } from 'react-icons/hi';
+import { HiDownload, HiCog, HiFolder } from 'react-icons/hi';
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -44,6 +44,13 @@ export function MainLayout({ children, currentPage, onNavigate }: MainLayoutProp
             icon={HiDownload}
             label="IES取得"
             page="wizard"
+            currentPage={currentPage}
+            onClick={onNavigate}
+          />
+          <NavItem
+            icon={HiFolder}
+            label="プロジェクト"
+            page="project"
             currentPage={currentPage}
             onClick={onNavigate}
           />
